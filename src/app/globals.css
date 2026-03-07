@@ -1,0 +1,420 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #07090F;
+  --bg-secondary: #0D1117;
+  --bg-card: #131820;
+  --bg-card-hover: #1A2233;
+  --accent-gold: #D4A853;
+  --accent-gold-light: #E8C97A;
+  --accent-blue: #2563EB;
+  --accent-blue-glow: #3B82F6;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --border: #1E293B;
+  --border-gold: rgba(212, 168, 83, 0.3);
+  --gradient-gold: linear-gradient(135deg, #D4A853 0%, #F5E6B8 50%, #D4A853 100%);
+  --gradient-dark: linear-gradient(180deg, #07090F 0%, #0D1117 100%);
+  --glow-gold: 0 0 30px rgba(212, 168, 83, 0.15);
+  --glow-blue: 0 0 30px rgba(37, 99, 235, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  direction: rtl;
+  text-align: right;
+  overflow-x: hidden;
+}
+
+/* ---- Grain Overlay ---- */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+/* ---- Dot Grid ---- */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(212, 168, 83, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ---- Glassmorphism card ---- */
+.glass-card {
+  background: rgba(19, 24, 32, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-gold);
+}
+
+/* ---- Animated gold border ---- */
+@keyframes borderRotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animated-gold-border {
+  position: relative;
+}
+
+.animated-gold-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #D4A853, #F5E6B8, #D4A853, transparent, transparent);
+  background-size: 300% 300%;
+  animation: borderRotate 4s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.animated-gold-border:hover::before {
+  opacity: 1;
+}
+
+/* ---- Gold gradient text ---- */
+.gold-text {
+  background: var(--gradient-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---- Gold underline ---- */
+.gold-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.gold-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  right: 0;
+  width: 60%;
+  height: 2px;
+  background: var(--gradient-gold);
+  border-radius: 2px;
+}
+
+/* ---- CTA Gold button ---- */
+.btn-gold {
+  background: linear-gradient(135deg, #D4A853 0%, #E8C97A 50%, #D4A853 100%);
+  background-size: 200% 200%;
+  color: #07090F;
+  font-weight: 700;
+  font-family: 'Tajawal', sans-serif;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gold:hover {
+  background-position: right center;
+  box-shadow: 0 0 40px rgba(212, 168, 83, 0.4), 0 8px 32px rgba(212, 168, 83, 0.2);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.btn-gold::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-gold:hover::after {
+  left: 100%;
+}
+
+/* ---- Outline gold button ---- */
+.btn-outline-gold {
+  border: 1px solid var(--border-gold);
+  color: var(--accent-gold);
+  font-family: 'Tajawal', sans-serif;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.btn-outline-gold:hover {
+  border-color: var(--accent-gold);
+  background: rgba(212, 168, 83, 0.08);
+  box-shadow: 0 0 20px rgba(212, 168, 83, 0.15);
+  transform: translateY(-2px);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-gold);
+  border-radius: 3px;
+}
+
+/* ---- Heading font ---- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Tajawal', sans-serif;
+}
+
+/* ---- Section divider ---- */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-gold), transparent);
+}
+
+/* ---- Pulse glow animation ---- */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(212, 168, 83, 0.3), 0 0 40px rgba(212, 168, 83, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(212, 168, 83, 0.5), 0 0 60px rgba(212, 168, 83, 0.2);
+  }
+}
+
+.pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+/* ---- Gradient mesh background ---- */
+.gradient-mesh {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(37, 99, 235, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(37, 99, 235, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(212, 168, 83, 0.04) 0%, transparent 50%),
+    #07090F;
+}
+
+/* ════════════════════════════════════════════════════
+   Advisory Board JSX Design System — Merged Classes
+   ════════════════════════════════════════════════════ */
+
+/* ---- Extra CSS variables ---- */
+:root {
+  --dark-card: #111118;
+  --dark-surface: #16161F;
+  --gold-dim: #8B7332;
+  --royal-blue: #1A3A6B;
+  --royal-blue-light: #2B5EA7;
+}
+
+/* ---- Keyframes ---- */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(212, 168, 83, 0.2); }
+  50% { border-color: rgba(212, 168, 83, 0.5); }
+}
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---- Glass utility classes ---- */
+.glass {
+  background: rgba(17, 17, 24, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(212, 168, 83, 0.12);
+}
+
+.glass-strong {
+  background: rgba(17, 17, 24, 0.8);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(212, 168, 83, 0.15);
+}
+
+/* ---- Shimmer text ---- */
+.shimmer-text {
+  background: linear-gradient(90deg, #8B7332, #E8C97A, #D4A853, #E8C97A, #8B7332);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+/* ---- Glow helpers ---- */
+.glow-gold {
+  box-shadow: 0 0 30px rgba(212, 168, 83, 0.15), 0 0 60px rgba(212, 168, 83, 0.05);
+}
+
+.glow-blue {
+  box-shadow: 0 0 30px rgba(26, 58, 107, 0.3), 0 0 60px rgba(26, 58, 107, 0.1);
+}
+
+/* ---- Card hover lift ---- */
+.card-hover {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-8px);
+  border-color: rgba(212, 168, 83, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(212, 168, 83, 0.08);
+}
+
+/* ---- Animate-in (CSS-based entry animation) ---- */
+.animate-in {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
+.delay-6 { animation-delay: 0.6s; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Scrollbar (updated with gradient) ---- */
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(#8B7332, #1A3A6B);
+  border-radius: 3px;
+}
+
+/* ---- Selection ---- */
+::selection {
+  background: rgba(212, 168, 83, 0.3);
+  color: #fff;
+}
+
+/* ---- Diamond separator ---- */
+.diamond-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 60px 0;
+}
+
+.diamond-separator::before,
+.diamond-separator::after {
+  content: '';
+  width: 120px;
+  height: 1px;
+}
+
+.diamond-separator::before {
+  background: linear-gradient(to right, transparent, var(--accent-gold));
+}
+
+.diamond-separator::after {
+  background: linear-gradient(to left, transparent, var(--accent-gold));
+}
+
+/* ---- Orb background ---- */
+.orb-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb-gold {
+  position: absolute;
+  top: -15%;
+  left: -10%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(212, 168, 83, 0.06) 0%, transparent 70%);
+  animation: float 8s ease-in-out infinite;
+}
+
+.orb-blue {
+  position: absolute;
+  bottom: -20%;
+  right: -10%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(26, 58, 107, 0.08) 0%, transparent 70%);
+  animation: float 10s ease-in-out infinite 2s;
+}
+
+.orb-center {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1000px;
+  height: 600px;
+  background: radial-gradient(ellipse, rgba(212, 168, 83, 0.03) 0%, transparent 60%);
+  animation: pulseGlow 6s ease-in-out infinite;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image:
+    linear-gradient(rgba(212, 168, 83, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212, 168, 83, 0.5) 1px, transparent 1px);
+  background-size: 80px 80px;
+}

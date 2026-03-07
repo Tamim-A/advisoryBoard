@@ -1,0 +1,37 @@
+{
+  "companyProfile": {
+    "company_name": "driblo",
+    "sector": "صناعة",
+    "company_size": "شركة ناشئة",
+    "stage": "إيرادات مبكرة",
+    "annual_revenue": "",
+    "team_size": ""
+  },
+  "decision": {
+    "title": "توسع",
+    "description": "نريد ان نستحوذ على مجر اكتروني بقيمة ثلاثة مليون ريال. ",
+    "category": "شراكة",
+    "primary_goal": "استحزاذ",
+    "estimated_cost": "",
+    "expected_timeline": "",
+    "alternatives": "",
+    "constraints": ""
+  },
+  "additionalAdvisors": [
+    "operational",
+    "financial",
+    "strategic",
+    "market",
+    "legal",
+    "growth",
+    "sustainability",
+    "risk",
+    "technical"
+  ],
+  "sessionType": "Quick",
+  "specificConcerns": "",
+  "status": "error",
+  "id": "1fc7259a-be55-438d-8ca7-d02d7fce3b89",
+  "createdAt": "2026-03-07T13:33:42.432Z",
+  "updatedAt": "2026-03-07T13:35:05.620Z"
+}
