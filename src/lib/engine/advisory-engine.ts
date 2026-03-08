@@ -47,17 +47,31 @@ const ADVISOR_REGISTRY: Record<
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+// ─── Timeout wrapper ─────────────────────────────────────
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`[Timeout] ${label} exceeded ${ms}ms`)),
+      ms
+    )
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val) },
+      (err) => { clearTimeout(timer); reject(err) }
+    )
+  })
+}
+
 // ─── Fallback report when an advisor fails ─────────────
-function createFallbackReport(advisorId: string): AdvisorOutput {
+function createFallbackReport(advisorId: string, reason = 'خطأ تقني'): AdvisorOutput {
   const config = ADVISOR_REGISTRY[advisorId]
   return {
     id: advisorId,
     name: config?.name ?? advisorId,
     icon: config?.icon ?? '🎯',
     verdict: 'APPROVE_WITH_CONDITIONS',
-    confidence: 50,
-    summary: 'تعذّر إكمال التحليل بسبب خطأ تقني.',
-    scorecard: [{ dimension: 'التقييم العام', score: 5 }],
+    confidence: 0,
+    summary: `تعذّر إكمال التحليل — ${reason}.`,
+    scorecard: [{ dimension: 'التقييم العام', score: 0 }],
     keyPoints: ['لم يتمكن المستشار من إكمال تحليله في هذه الجلسة.'],
     risks: [],
     scenarios: {
@@ -65,9 +79,10 @@ function createFallbackReport(advisorId: string): AdvisorOutput {
       base:  { title: 'غير متاح', description: 'تعذّر التحليل' },
       worst: { title: 'غير متاح', description: 'تعذّر التحليل' },
     },
-    strongestObjection: 'غير متاح — حدث خطأ تقني.',
+    strongestObjection: 'غير متاح.',
     recommendation: 'أعد المحاولة في جلسة جديدة.',
-  }
+    _isFallback: true,
+  } as AdvisorOutput & { _isFallback: boolean }
 }
 
 // ─── Run a single advisor (with rate-limit-aware retry) ─
@@ -81,26 +96,38 @@ async function runSingleAdvisor(
 
   const userMessage = config.module.buildUserMessage(company, decision)
 
+  const ADVISOR_TIMEOUT_MS = 120_000 // 2 minutes per advisor
+
   try {
     // callAdvisor already handles 429 retry internally (client.ts)
-    const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000) as unknown as AdvisorOutput
+    const result = await withTimeout(
+      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 6000),
+      ADVISOR_TIMEOUT_MS,
+      advisorId
+    ) as unknown as AdvisorOutput
     return { ...result, id: advisorId, name: config.name, icon: config.icon }
   } catch (error: unknown) {
-    const e = error as { status?: number; error?: { type?: string } }
+    const e = error as { status?: number; error?: { type?: string }; message?: string }
+    const isTimeout = e?.message?.startsWith('[Timeout]')
     // If rate limit still hits after client retry, wait longer and try once more
-    if (e?.status === 429 || e?.error?.type === 'rate_limit_error') {
+    if (!isTimeout && (e?.status === 429 || e?.error?.type === 'rate_limit_error')) {
       console.log(`[Engine] Rate limit for ${advisorId} — waiting 20s for final retry...`)
-      await delay(40000)
+      await delay(20000)
       try {
-        const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000) as unknown as AdvisorOutput
+        const result = await withTimeout(
+          callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 6000),
+          ADVISOR_TIMEOUT_MS,
+          advisorId
+        ) as unknown as AdvisorOutput
         return { ...result, id: advisorId, name: config.name, icon: config.icon }
       } catch {
         console.error(`[Engine] Final retry failed for ${advisorId}`)
-        return createFallbackReport(advisorId)
+        return createFallbackReport(advisorId, 'تجاوز حد الطلبات')
       }
     }
+    const reason = isTimeout ? 'استغرق التحليل وقتاً أطول من المتوقع' : 'خطأ تقني'
     console.error(`[Engine] Error for ${advisorId}:`, error)
-    return createFallbackReport(advisorId)
+    return createFallbackReport(advisorId, reason)
   }
 }
 
@@ -129,11 +156,18 @@ async function runAdvisorsSequential(
   return results
 }
 
+// ─── Filter out fallback (failed) advisor results ───────
+function successfulAdvisors(results: AdvisorOutput[]): AdvisorOutput[] {
+  return results.filter((a) => !(a as AdvisorOutput & { _isFallback?: boolean })._isFallback)
+}
+
 // ─── Run debate engine ──────────────────────────────────
 async function runDebate(advisorResults: AdvisorOutput[]): Promise<DebateOutput> {
+  const usable = successfulAdvisors(advisorResults)
+  if (usable.length < 2) return { points: [] }
   try {
-    const userMessage = buildDebateMessage(advisorResults)
-    const result = await callAdvisor(DEBATE_PROMPT, userMessage, 4000) as unknown as DebateOutput
+    const userMessage = buildDebateMessage(usable)
+    const result = await callAdvisor(DEBATE_PROMPT, userMessage, 6000) as unknown as DebateOutput
     return result
   } catch {
     return { points: [] }
@@ -147,8 +181,12 @@ async function runSynthesis(
   weights: Record<string, number>,
   decision: Decision
 ): Promise<SynthesisOutput> {
-  const userMessage = buildSynthesisMessage(advisorResults, debate, weights, decision)
-  const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 4000, true) as unknown as SynthesisOutput
+  // Only pass successful advisor results to synthesis
+  const usable = successfulAdvisors(advisorResults)
+  const forSynthesis = usable.length > 0 ? usable : advisorResults // fallback: use all if none succeeded
+  console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
+  const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
+  const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 6000, true) as unknown as SynthesisOutput
   return result
 }
 

@@ -18,43 +18,75 @@ export function hasApiKey(): boolean {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+// ─── Repair truncated / malformed JSON ─────────────
+function repairJSON(text: string): string {
+  // Remove trailing commas before } or ]
+  let s = text.replace(/,(\s*[}\]])/g, '$1')
+
+  // Try to auto-close truncated JSON by balancing braces/brackets
+  // Walk the string tracking open braces/brackets and unclosed strings
+  const stack: string[] = []
+  let inString = false
+  let escaped = false
+  for (const ch of s) {
+    if (escaped) { escaped = false; continue }
+    if (ch === '\\' && inString) { escaped = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') stack.push('}')
+    else if (ch === '[') stack.push(']')
+    else if (ch === '}' || ch === ']') stack.pop()
+  }
+  // If we were inside a string when truncated, close it first
+  if (inString) s += '"'
+  // Close any open structures in reverse order
+  s += stack.reverse().join('')
+  return s
+}
+
 // ─── Parse JSON from Claude response with robust recovery ──
 function parseAdvisorResponse(rawText: string): Record<string, unknown> {
-  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+  // 1. Strip all markdown code fences (handles multi-line variants too)
   let text = rawText
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/, '')
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
     .trim()
 
-  // 2. Try straight parse
+  // 2. Extract the outermost { ... } block
+  const first = text.indexOf('{')
+  const last = text.lastIndexOf('}')
+  if (first !== -1 && last > first) {
+    text = text.slice(first, last + 1)
+  }
+
+  // 3. Try straight parse on extracted block
   try {
     return JSON.parse(text) as Record<string, unknown>
-  } catch {
-    // 3. Find the outermost { ... } block and retry
-    const first = text.indexOf('{')
-    const last = text.lastIndexOf('}')
-    if (first !== -1 && last > first) {
-      try {
-        return JSON.parse(text.slice(first, last + 1)) as Record<string, unknown>
-      } catch {
-        // continue to fallback
-      }
-    }
+  } catch { /* continue */ }
 
-    // 4. Minimal valid response carrying the raw text as summary
-    console.warn('[Claude] JSON parse failed — using minimal fallback. Raw length:', rawText.length)
-    return {
-      verdict: 'APPROVE_WITH_CONDITIONS',
-      confidence: 50,
-      summary: text.slice(0, 800) || 'لم يتمكن النظام من تحليل الاستجابة.',
-      key_findings: [],
-      risks: [],
-      scorecard: { confidence: 0.5 },
-      scenarios: { best_case: '—', base_case: '—', worst_case: '—' },
-      strongest_objection: '—',
-      recommendation: 'أعد المحاولة أو راجع النتائج الجزئية.',
-    }
+  // 4. Remove trailing commas and retry
+  const cleaned = text.replace(/,(\s*[}\]])/g, '$1')
+  try {
+    return JSON.parse(cleaned) as Record<string, unknown>
+  } catch { /* continue */ }
+
+  // 5. Auto-repair truncated JSON (add missing closing braces/brackets)
+  try {
+    return JSON.parse(repairJSON(cleaned)) as Record<string, unknown>
+  } catch { /* continue */ }
+
+  // 6. Minimal valid fallback — carry raw text as summary so data isn't lost
+  console.warn('[Claude] JSON parse failed — using minimal fallback. Raw length:', rawText.length)
+  return {
+    verdict: 'APPROVE_WITH_CONDITIONS',
+    confidence: 50,
+    summary: rawText.slice(0, 800) || 'لم يتمكن النظام من تحليل الاستجابة.',
+    key_findings: [],
+    risks: [],
+    scorecard: { confidence: 0.5 },
+    scenarios: { best_case: '—', base_case: '—', worst_case: '—' },
+    strongest_objection: '—',
+    recommendation: 'أعد المحاولة أو راجع النتائج الجزئية.',
   }
 }
 
@@ -62,7 +94,7 @@ function parseAdvisorResponse(rawText: string): Record<string, unknown> {
 export async function callAdvisor(
   systemPrompt: string,
   userMessage: string,
-  maxTokens = 4000,
+  maxTokens = 6000,
   useSynthesisModel = false
 ): Promise<Record<string, unknown>> {
   const model = useSynthesisModel ? SYNTHESIS_MODEL : ADVISOR_MODEL
@@ -99,7 +131,7 @@ export async function callAdvisor(
 export async function* callAdvisorStream(
   systemPrompt: string,
   userMessage: string,
-  maxTokens = 4000
+  maxTokens = 6000
 ): AsyncGenerator<string> {
   const stream = await getClient().messages.stream({
     model: ADVISOR_MODEL,
