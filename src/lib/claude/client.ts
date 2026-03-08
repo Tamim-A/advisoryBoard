@@ -18,6 +18,46 @@ export function hasApiKey(): boolean {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+// ─── Parse JSON from Claude response with robust recovery ──
+function parseAdvisorResponse(rawText: string): Record<string, unknown> {
+  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+  let text = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim()
+
+  // 2. Try straight parse
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    // 3. Find the outermost { ... } block and retry
+    const first = text.indexOf('{')
+    const last = text.lastIndexOf('}')
+    if (first !== -1 && last > first) {
+      try {
+        return JSON.parse(text.slice(first, last + 1)) as Record<string, unknown>
+      } catch {
+        // continue to fallback
+      }
+    }
+
+    // 4. Minimal valid response carrying the raw text as summary
+    console.warn('[Claude] JSON parse failed — using minimal fallback. Raw length:', rawText.length)
+    return {
+      verdict: 'APPROVE_WITH_CONDITIONS',
+      confidence: 50,
+      summary: text.slice(0, 800) || 'لم يتمكن النظام من تحليل الاستجابة.',
+      key_findings: [],
+      risks: [],
+      scorecard: { confidence: 0.5 },
+      scenarios: { best_case: '—', base_case: '—', worst_case: '—' },
+      strongest_objection: '—',
+      recommendation: 'أعد المحاولة أو راجع النتائج الجزئية.',
+    }
+  }
+}
+
 // ─── Call advisor and return parsed JSON ──────────
 export async function callAdvisor(
   systemPrompt: string,
@@ -36,9 +76,7 @@ export async function callAdvisor(
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    // Strip any markdown code fences if present
-    const cleaned = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
-    return JSON.parse(cleaned)
+    return parseAdvisorResponse(text)
   }
 
   try {

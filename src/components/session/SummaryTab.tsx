@@ -69,7 +69,7 @@ export default function SummaryTab({ session }: { session: SessionData }) {
             {v.label}
           </h2>
           <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-            بناءً على تحليل ٩ مستشارين متخصصين
+            بناءً على تحليل ٤ مستشارين متخصصين
           </p>
         </div>
         <div className="flex flex-col items-center gap-1">
