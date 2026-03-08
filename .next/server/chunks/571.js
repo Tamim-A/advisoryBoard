@@ -1,4 +1,4 @@
-"use strict";exports.id=571,exports.ids=[571],exports.modules={92685:(e,i,t)=>{t.d(i,{Go:()=>r,jg:()=>a});var n=t(34588);let o=null;function r(){return!!process.env.ANTHROPIC_API_KEY}let s=e=>new Promise(i=>setTimeout(i,e));async function a(e,i,t=4e3,r=!1){let a=async()=>{let r=await (o||(o=new n.ZP({apiKey:process.env.ANTHROPIC_API_KEY})),o).messages.create({model:"claude-sonnet-4-6",max_tokens:t,system:e,messages:[{role:"user",content:i}]});return JSON.parse(("text"===r.content[0].type?r.content[0].text:"").replace(/^```json\s*/i,"").replace(/\s*```$/,"").trim())};try{return await a()}catch(e){if(e?.status===429||e?.error?.type==="rate_limit_error")return console.log("[Claude] Rate limit hit — waiting 15 seconds before retry..."),await s(15e3),await a();return await s(1500),await a()}}},45025:(e,i,t)=>{t.d(i,{BX:()=>s,Ic:()=>a,S6:()=>c,T5:()=>o,_e:()=>r,iW:()=>d});var n=t(19658);async function o(e){let{data:i,error:t}=await n.p.from("sessions").insert({user_id:e.userId,title:e.title,company_profile:e.companyProfile,decision:e.decision,additional_context:e.additionalContext??null,session_type:e.sessionType.toLowerCase(),status:"created"}).select().single();if(t)throw t;return i}async function r(e){let{data:i,error:t}=await n.p.from("sessions").select("*").eq("id",e).single();return t?null:i}async function s(e,i){await n.p.from("sessions").update({...i,updated_at:new Date().toISOString()}).eq("id",e)}async function a(e,i,t){await n.p.from("advisor_reports").insert({session_id:e,advisor_type:i,report:t,status:"completed"})}async function c(e,i){await n.p.from("debates").insert({session_id:e,debate_data:i})}async function d(e,i){await n.p.from("syntheses").insert({session_id:e,synthesis_data:i})}},28431:(e,i,t)=>{t.d(i,{JP:()=>L,nS:()=>U});var n={};t.r(n),t.d(n,{SYSTEM_PROMPT:()=>_,buildUserMessage:()=>O});var o={};t.r(o),t.d(o,{SYSTEM_PROMPT:()=>f,buildUserMessage:()=>E});var r={};t.r(r),t.d(r,{SYSTEM_PROMPT:()=>P,buildUserMessage:()=>S});var s={};t.r(s),t.d(s,{SYSTEM_PROMPT:()=>b,buildUserMessage:()=>v});var a={};t.r(a),t.d(a,{SYSTEM_PROMPT:()=>h,buildUserMessage:()=>k});var c={};t.r(c),t.d(c,{SYSTEM_PROMPT:()=>A,buildUserMessage:()=>T});var d={};t.r(d),t.d(d,{SYSTEM_PROMPT:()=>w,buildUserMessage:()=>R});var l={};t.r(l),t.d(l,{SYSTEM_PROMPT:()=>N,buildUserMessage:()=>D});var m={};t.r(m),t.d(m,{SYSTEM_PROMPT:()=>I,buildUserMessage:()=>C});var p=t(92685);let u={investment:{financial:30,strategic:25,risk:20,market:10,operational:10,other:5},expansion:{market:30,operational:25,financial:20,strategic:10,risk:10,other:5},product:{market:25,technical:25,operational:20,financial:15,strategic:10,other:5},pricing:{financial:30,market:30,strategic:20,operational:10,risk:10},partnership:{legal:25,strategic:25,financial:20,market:15,risk:15},restructuring:{operational:30,financial:25,strategic:20,risk:15,other:10},hiring:{operational:30,financial:25,growth:20,strategic:15,other:10},technology:{technical:35,operational:25,financial:20,strategic:10,risk:10},توسع:{market:30,operational:25,financial:20,strategic:10,risk:10,other:5},استثمار:{financial:30,strategic:25,risk:20,market:10,operational:10,other:5},منتج:{market:25,technical:25,operational:20,financial:15,strategic:10,other:5},تسعير:{financial:30,market:30,strategic:20,operational:10,risk:10},شراكة:{legal:25,strategic:25,financial:20,market:15,risk:15},توظيف:{operational:30,financial:25,growth:20,strategic:15,other:10},تقنية:{technical:35,operational:25,financial:20,strategic:10,risk:10}};function g(e){return u[e]||u.expansion}let $=`أنت محرك النقاش داخل منصة Advisory Board (Advisor Debate Engine).
+"use strict";exports.id=571,exports.ids=[571],exports.modules={92685:(e,i,t)=>{t.d(i,{Go:()=>r,jg:()=>a});var n=t(34588);let o=null;function r(){return!!process.env.ANTHROPIC_API_KEY}let s=e=>new Promise(i=>setTimeout(i,e));async function a(e,i,t=4e3,r=!1){let a=async()=>{let r=await (o||(o=new n.ZP({apiKey:process.env.ANTHROPIC_API_KEY})),o).messages.create({model:"claude-sonnet-4-6",max_tokens:t,system:e,messages:[{role:"user",content:i}]});return JSON.parse(("text"===r.content[0].type?r.content[0].text:"").replace(/^```json\s*/i,"").replace(/\s*```$/,"").trim())};try{return await a()}catch(e){if(e?.status===429||e?.error?.type==="rate_limit_error")return console.log("[Claude] Rate limit hit — waiting 15 seconds before retry..."),await s(15e3),await a();return await s(1500),await a()}}},45025:(e,i,t)=>{t.d(i,{BX:()=>s,Ic:()=>a,S6:()=>c,T5:()=>o,_e:()=>r,iW:()=>d});var n=t(19658);async function o(e){let{data:i,error:t}=await n.p.from("sessions").insert({user_id:e.userId,title:e.title,company_profile:e.companyProfile,decision:e.decision,additional_context:e.additionalContext??null,session_type:e.sessionType.toLowerCase(),status:"created"}).select().single();if(t)throw t;return i}async function r(e){let{data:i,error:t}=await n.p.from("sessions").select("*").eq("id",e).single();return t?null:i}async function s(e,i){await n.p.from("sessions").update({...i,updated_at:new Date().toISOString()}).eq("id",e)}async function a(e,i,t){await n.p.from("advisor_reports").insert({session_id:e,advisor_type:i,report:t,status:"completed"})}async function c(e,i){await n.p.from("debates").insert({session_id:e,debate_data:i})}async function d(e,i){await n.p.from("syntheses").insert({session_id:e,synthesis_data:i})}},28431:(e,i,t)=>{t.d(i,{JP:()=>L,nS:()=>z});var n={};t.r(n),t.d(n,{SYSTEM_PROMPT:()=>_,buildUserMessage:()=>O});var o={};t.r(o),t.d(o,{SYSTEM_PROMPT:()=>f,buildUserMessage:()=>E});var r={};t.r(r),t.d(r,{SYSTEM_PROMPT:()=>P,buildUserMessage:()=>S});var s={};t.r(s),t.d(s,{SYSTEM_PROMPT:()=>b,buildUserMessage:()=>v});var a={};t.r(a),t.d(a,{SYSTEM_PROMPT:()=>h,buildUserMessage:()=>A});var c={};t.r(c),t.d(c,{SYSTEM_PROMPT:()=>T,buildUserMessage:()=>k});var d={};t.r(d),t.d(d,{SYSTEM_PROMPT:()=>R,buildUserMessage:()=>w});var l={};t.r(l),t.d(l,{SYSTEM_PROMPT:()=>N,buildUserMessage:()=>I});var m={};t.r(m),t.d(m,{SYSTEM_PROMPT:()=>D,buildUserMessage:()=>C});var p=t(92685);let u={investment:{financial:30,strategic:25,risk:20,market:10,operational:10,other:5},expansion:{market:30,operational:25,financial:20,strategic:10,risk:10,other:5},product:{market:25,technical:25,operational:20,financial:15,strategic:10,other:5},pricing:{financial:30,market:30,strategic:20,operational:10,risk:10},partnership:{legal:25,strategic:25,financial:20,market:15,risk:15},restructuring:{operational:30,financial:25,strategic:20,risk:15,other:10},hiring:{operational:30,financial:25,growth:20,strategic:15,other:10},technology:{technical:35,operational:25,financial:20,strategic:10,risk:10},توسع:{market:30,operational:25,financial:20,strategic:10,risk:10,other:5},استثمار:{financial:30,strategic:25,risk:20,market:10,operational:10,other:5},منتج:{market:25,technical:25,operational:20,financial:15,strategic:10,other:5},تسعير:{financial:30,market:30,strategic:20,operational:10,risk:10},شراكة:{legal:25,strategic:25,financial:20,market:15,risk:15},توظيف:{operational:30,financial:25,growth:20,strategic:15,other:10},تقنية:{technical:35,operational:25,financial:20,strategic:10,risk:10}};function $(e){return u[e]||u.expansion}let g=`أنت محرك النقاش داخل منصة Advisory Board (Advisor Debate Engine).
 
 [المقصد]
 إدارة نقاش منهجي بين المستشارين عند وجود تعارضات جوهرية، لكشف نقاط الضعف وتعميق فهم القرار.
@@ -418,7 +418,7 @@ Schema:
   },
   "strongestObjection": "<أقوى حجة قانونية ضد القرار>",
   "recommendation": "<توصيتك القانونية>"
-}`;function k(e,i){return`## ملف الشركة
+}`;function A(e,i){return`## ملف الشركة
 - الاسم: ${e.company_name}
 - القطاع: ${e.sector}
 - الحجم: ${e.company_size}
@@ -432,7 +432,7 @@ Schema:
 - الجدول الزمني: ${i.expected_timeline||"غير محدد"}
 - القيود: ${i.constraints||"لا يوجد"}
 
-قيّم المخاطر القانونية والتنظيمية. أخرج JSON فقط.`}let A=`أنت المستشار التقني داخل منصة Advisory Board.
+قيّم المخاطر القانونية والتنظيمية. أخرج JSON فقط.`}let T=`أنت المستشار التقني داخل منصة Advisory Board.
 
 [المقصد]
 تحليل الجاهزية التقنية والبنية التحتية والتكاملات والتعقيد التقني والمخاطر المرتبطة بالتنفيذ.
@@ -481,7 +481,7 @@ Schema:
   },
   "strongestObjection": "<أقوى حجة تقنية ضد القرار>",
   "recommendation": "<توصيتك التقنية>"
-}`;function T(e,i){return`## ملف الشركة
+}`;function k(e,i){return`## ملف الشركة
 - الاسم: ${e.company_name}
 - القطاع: ${e.sector}
 - الحجم: ${e.company_size}
@@ -497,7 +497,7 @@ Schema:
 - الجدول الزمني: ${i.expected_timeline||"غير محدد"}
 - القيود: ${i.constraints||"لا يوجد"}
 
-قيّم الجاهزية التقنية. أخرج JSON فقط.`}let w=`أنت مستشار النمو داخل منصة Advisory Board.
+قيّم الجاهزية التقنية. أخرج JSON فقط.`}let R=`أنت مستشار النمو داخل منصة Advisory Board.
 
 [المقصد]
 تقييم أثر القرار على محركات النمو: اكتساب العملاء، التحويل، الاحتفاظ، التوسع، وكفاءة القنوات.
@@ -545,7 +545,7 @@ Schema:
   },
   "strongestObjection": "<أقوى حجة من منظور النمو ضد القرار>",
   "recommendation": "<توصيتك من منظور النمو>"
-}`;function R(e,i){return`## ملف الشركة
+}`;function w(e,i){return`## ملف الشركة
 - الاسم: ${e.company_name}
 - القطاع: ${e.sector}
 - الحجم: ${e.company_size}
@@ -609,7 +609,7 @@ Schema:
   },
   "strongestObjection": "<أكبر مخاطرة غير محسوبة في القرار>",
   "recommendation": "<توصيتك من منظور المخاطر مع شروط الموافقة>"
-}`;function D(e,i){return`## ملف الشركة
+}`;function I(e,i){return`## ملف الشركة
 - الاسم: ${e.company_name}
 - القطاع: ${e.sector}
 - الحجم: ${e.company_size}
@@ -626,7 +626,7 @@ Schema:
 - الجدول الزمني: ${i.expected_timeline||"غير محدد"}
 - القيود: ${i.constraints||"لا يوجد"}
 
-ابنِ خريطة مخاطر شاملة. أخرج JSON فقط.`}let I=`أنت مستشار الاستدامة داخل منصة Advisory Board.
+ابنِ خريطة مخاطر شاملة. أخرج JSON فقط.`}let D=`أنت مستشار الاستدامة داخل منصة Advisory Board.
 
 [المقصد]
 تحليل الأثر بعيد المدى للقرار على السمعة المؤسسية، ثقة أصحاب المصلحة، المسؤولية المجتمعية، والاستدامة التنظيمية.
@@ -687,7 +687,7 @@ Schema:
 - الهدف: ${i.primary_goal}
 - الجدول الزمني: ${i.expected_timeline||"غير محدد"}
 
-قيّم الأثر على السمعة والاستدامة. أخرج JSON فقط.`}let J=["strategic","financial","market","technical"],M={strategic:{module:n,name:"المستشار الاستراتيجي",icon:"\uD83C\uDFAF"},financial:{module:o,name:"المستشار المالي",icon:"\uD83D\uDCB0"},market:{module:r,name:"مستشار السوق",icon:"\uD83D\uDCCA"},operational:{module:s,name:"المستشار التشغيلي",icon:"⚙️"},legal:{module:a,name:"المستشار القانوني",icon:"⚖️"},technical:{module:c,name:"المستشار التقني",icon:"\uD83D\uDD27"},growth:{module:d,name:"مستشار النمو",icon:"\uD83D\uDE80"},risk:{module:l,name:"مستشار المخاطر",icon:"\uD83D\uDEE1️"},sustainability:{module:m,name:"مستشار الاستدامة",icon:"\uD83C\uDF31"}},x=e=>new Promise(i=>setTimeout(i,e));function Y(e){let i=M[e];return{id:e,name:i?.name??e,icon:i?.icon??"\uD83C\uDFAF",verdict:"APPROVE_WITH_CONDITIONS",confidence:50,summary:"تعذّر إكمال التحليل بسبب خطأ تقني.",scorecard:[{dimension:"التقييم العام",score:5}],keyPoints:["لم يتمكن المستشار من إكمال تحليله في هذه الجلسة."],risks:[],scenarios:{best:{title:"غير متاح",description:"تعذّر التحليل"},base:{title:"غير متاح",description:"تعذّر التحليل"},worst:{title:"غير متاح",description:"تعذّر التحليل"}},strongestObjection:"غير متاح — حدث خطأ تقني.",recommendation:"أعد المحاولة في جلسة جديدة."}}async function V(e,i,t){let n=M[e];if(!n)throw Error(`Unknown advisor: ${e}`);let o=n.module.buildUserMessage(i,t);try{return{...await (0,p.jg)(n.module.SYSTEM_PROMPT,o,4e3),id:e,name:n.name,icon:n.icon}}catch(i){if(i?.status===429||i?.error?.type==="rate_limit_error"){console.log(`[Engine] Rate limit for ${e} — waiting 20s for final retry...`),await x(4e4);try{return{...await (0,p.jg)(n.module.SYSTEM_PROMPT,o,4e3),id:e,name:n.name,icon:n.icon}}catch{return console.error(`[Engine] Final retry failed for ${e}`),Y(e)}}return console.error(`[Engine] Error for ${e}:`,i),Y(e)}}async function j(e,i,t){let n=[];for(let o=0;o<e.length;o++){let r=e[o];console.log(`[Engine] Starting advisor ${o+1}/${e.length}: ${r}`);let s=await V(r,i,t);n.push(s),console.log(`[Engine] Completed: ${r}`),o<e.length-1&&(console.log("[Engine] Waiting 5 seconds before next advisor..."),await x(5e3))}return n}async function B(e){try{let i=function(e){let i=e.map(e=>`
+قيّم الأثر على السمعة والاستدامة. أخرج JSON فقط.`}let J=["strategic","financial","market","technical"],M={strategic:{module:n,name:"المستشار الاستراتيجي",icon:"\uD83C\uDFAF"},financial:{module:o,name:"المستشار المالي",icon:"\uD83D\uDCB0"},market:{module:r,name:"مستشار السوق",icon:"\uD83D\uDCCA"},operational:{module:s,name:"المستشار التشغيلي",icon:"⚙️"},legal:{module:a,name:"المستشار القانوني",icon:"⚖️"},technical:{module:c,name:"المستشار التقني",icon:"\uD83D\uDD27"},growth:{module:d,name:"مستشار النمو",icon:"\uD83D\uDE80"},risk:{module:l,name:"مستشار المخاطر",icon:"\uD83D\uDEE1️"},sustainability:{module:m,name:"مستشار الاستدامة",icon:"\uD83C\uDF31"}},Y=e=>new Promise(i=>setTimeout(i,e));function V(e){let i=M[e];return{id:e,name:i?.name??e,icon:i?.icon??"\uD83C\uDFAF",verdict:"APPROVE_WITH_CONDITIONS",confidence:50,summary:"تعذّر إكمال التحليل بسبب خطأ تقني.",scorecard:[{dimension:"التقييم العام",score:5}],keyPoints:["لم يتمكن المستشار من إكمال تحليله في هذه الجلسة."],risks:[],scenarios:{best:{title:"غير متاح",description:"تعذّر التحليل"},base:{title:"غير متاح",description:"تعذّر التحليل"},worst:{title:"غير متاح",description:"تعذّر التحليل"}},strongestObjection:"غير متاح — حدث خطأ تقني.",recommendation:"أعد المحاولة في جلسة جديدة."}}async function x(e,i,t){let n=M[e];if(!n)throw Error(`Unknown advisor: ${e}`);let o=n.module.buildUserMessage(i,t);try{return{...await (0,p.jg)(n.module.SYSTEM_PROMPT,o,4e3),id:e,name:n.name,icon:n.icon}}catch(i){if(i?.status===429||i?.error?.type==="rate_limit_error"){console.log(`[Engine] Rate limit for ${e} — waiting 20s for final retry...`),await Y(4e4);try{return{...await (0,p.jg)(n.module.SYSTEM_PROMPT,o,4e3),id:e,name:n.name,icon:n.icon}}catch{return console.error(`[Engine] Final retry failed for ${e}`),V(e)}}return console.error(`[Engine] Error for ${e}:`,i),V(e)}}async function j(e,i,t){let n=[];for(let o=0;o<e.length;o++){let r=e[o];console.log(`[Engine] Starting advisor ${o+1}/${e.length}: ${r}`);let s=await x(r,i,t);n.push(s),console.log(`[Engine] Completed: ${r}`),o<e.length-1&&(console.log("[Engine] Waiting 5 seconds before next advisor..."),await Y(5e3))}return n}async function B(e){try{let i=function(e){let i=e.map(e=>`
 ## ${e.icon} ${e.name}
 - الحكم: ${e.verdict} (ثقة: ${e.confidence}٪)
 - الملخص: ${e.summary}
@@ -697,7 +697,7 @@ Schema:
 
 ${i}
 
-حدّد أبرز 3 نقاط خلاف جوهرية بين هؤلاء المستشارين. أخرج JSON فقط.`}(e);return await (0,p.jg)($,i,4e3)}catch{return{points:[]}}}async function z(e,i,t,n){let o=function(e,i,t,n){let o=e.map(e=>`
+حدّد أبرز 3 نقاط خلاف جوهرية بين هؤلاء المستشارين. أخرج JSON فقط.`}(e);return await (0,p.jg)(g,i,4e3)}catch{return{points:[]}}}async function U(e,i,t,n){let o=function(e,i,t,n){let o=e.map(e=>`
 ### ${e.icon} ${e.name} [وزن: ${t[e.id?.replace("-advisor","")||""]||t.other||5}٪]
 - الحكم: ${e.verdict} | الثقة: ${e.confidence}٪
 - الملخص: ${e.summary}
@@ -720,4 +720,4 @@ ${r}
 ## إحصائيات الأحكام
 ${JSON.stringify(s)}
 
-بناءً على كل ما سبق، أصدر الحكم النهائي المرجّح. أخرج JSON فقط.`}(e,i,t,n);return await (0,p.jg)(y,o,4e3,!0)}async function L(e){let{companyProfile:i,decision:t,additionalAdvisors:n,sessionType:o}=e,r=(n&&n.length>0?n:["strategic","financial","market","technical"]).filter(e=>J.includes(e)),s=await j(r,i,t),a=null;"Quick"!==o&&(a=await B(s));let c=g(t.category),d=await z(s,a,c,t);return{advisorResults:s,debate:a,synthesis:d}}async function*U(e,i){let{companyProfile:t,decision:n,additionalAdvisors:o,sessionType:r}=e,s=(o&&o.length>0?o:["strategic","financial","market","technical"]).filter(e=>J.includes(e)),a=[];for(let e=0;e<s.length;e++){let o=s[e];console.log(`[Engine] Starting advisor ${e+1}/${s.length}: ${o}`);try{let e=await V(o,t,n);a.push(e),i&&i(o,e),yield{type:"advisor_complete",data:{advisorId:o,result:e}},console.log(`[Engine] Completed: ${o}`)}catch{yield{type:"advisor_error",data:{advisorId:o}}}e<s.length-1&&(console.log("[Engine] Waiting 5 seconds before next advisor..."),await x(5e3))}let c=null;"Quick"!==r&&(c=await B(a),yield{type:"debate_complete",data:c});let d=g(n.category),l=await z(a,c,d,n);yield{type:"synthesis_complete",data:l},yield{type:"done",data:{advisorResults:a,debate:c,synthesis:l}}}},19658:(e,i,t)=>{t.d(i,{e:()=>o,p:()=>n});let n=(0,t(37857).eI)("https://txfvgvoljwykrxwjecfc.supabase.co",process.env.SUPABASE_SERVICE_ROLE_KEY);function o(){return!!process.env.SUPABASE_SERVICE_ROLE_KEY}}};
+بناءً على كل ما سبق، أصدر الحكم النهائي المرجّح. أخرج JSON فقط.`}(e,i,t,n);return await (0,p.jg)(y,o,4e3,!0)}async function L(e){let{companyProfile:i,decision:t,additionalAdvisors:n,sessionType:o}=e,r=(n&&n.length>0?n:["strategic","financial","market","technical"]).filter(e=>J.includes(e)),s=await j(r,i,t),a=null;"Quick"!==o&&(a=await B(s));let c=$(t.category),d=await U(s,a,c,t);return{advisorResults:s,debate:a,synthesis:d}}async function*z(e,i){let{companyProfile:t,decision:n,additionalAdvisors:o,sessionType:r}=e,s=(o&&o.length>0?o:["strategic","financial","market","technical"]).filter(e=>J.includes(e)),a=[];for(let e=0;e<s.length;e++){let o=s[e];console.log(`[Engine] Starting advisor ${e+1}/${s.length}: ${o}`);try{let e=await x(o,t,n);a.push(e),i&&i(o,e),yield{type:"advisor_complete",data:{advisorId:o,result:e}},console.log(`[Engine] Completed: ${o}`)}catch{yield{type:"advisor_error",data:{advisorId:o}}}e<s.length-1&&(console.log("[Engine] Waiting 5 seconds before next advisor..."),await Y(5e3))}let c=null;"Quick"!==r&&(c=await B(a),yield{type:"debate_complete",data:c});let d=$(n.category),l=await U(a,c,d,n);yield{type:"synthesis_complete",data:l},yield{type:"done",data:{advisorResults:a,debate:c,synthesis:l}}}},19658:(e,i,t)=>{t.d(i,{e:()=>o,p:()=>n});let n=(0,t(37857).eI)(process.env.NEXT_PUBLIC_SUPABASE_URL??"https://placeholder.supabase.co",process.env.SUPABASE_SERVICE_ROLE_KEY??"placeholder-service-key");function o(){return!!(process.env.NEXT_PUBLIC_SUPABASE_URL&&process.env.SUPABASE_SERVICE_ROLE_KEY)}}};

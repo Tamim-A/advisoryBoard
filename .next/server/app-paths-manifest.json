@@ -1,15 +1,15 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/companies/route": "app/api/companies/route.js",
-  "/api/sessions/route": "app/api/sessions/route.js",
   "/api/session/[id]/route": "app/api/session/[id]/route.js",
+  "/api/companies/route": "app/api/companies/route.js",
   "/api/session/create/route": "app/api/session/create/route.js",
-  "/auth/callback/route": "app/auth/callback/route.js",
   "/auth/login/page": "app/auth/login/page.js",
+  "/auth/callback/route": "app/auth/callback/route.js",
+  "/api/sessions/route": "app/api/sessions/route.js",
   "/page": "app/page.js",
-  "/session/[id]/page": "app/session/[id]/page.js",
   "/session/new/page": "app/session/new/page.js",
-  "/api/session/[id]/run/route": "app/api/session/[id]/run/route.js",
+  "/session/[id]/page": "app/session/[id]/page.js",
   "/api/session/[id]/stream/route": "app/api/session/[id]/stream/route.js",
+  "/api/session/[id]/run/route": "app/api/session/[id]/run/route.js",
   "/dashboard/page": "app/dashboard/page.js"
 }

@@ -4,10 +4,14 @@ import { v4 as uuidv4 } from 'uuid'
 
 const SESSIONS_DIR = path.join(process.cwd(), 'data', 'sessions')
 
-// Ensure directory exists
+// Ensure directory exists — silently no-ops on read-only filesystems (e.g. Vercel)
 function ensureDir() {
-  if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+  try {
+    if (!fs.existsSync(SESSIONS_DIR)) {
+      fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+    }
+  } catch {
+    // Read-only filesystem — ignore
   }
 }
 
@@ -35,15 +39,19 @@ export function saveSession(data: Omit<StoredSession, 'id' | 'createdAt' | 'upda
   const id = uuidv4()
   const now = new Date().toISOString()
   const session: StoredSession = { ...data, id, createdAt: now, updatedAt: now }
-  fs.writeFileSync(sessionPath(id), JSON.stringify(session, null, 2), 'utf-8')
+  try {
+    fs.writeFileSync(sessionPath(id), JSON.stringify(session, null, 2), 'utf-8')
+  } catch {
+    // Read-only filesystem (Vercel) — session only exists in-memory for this request
+  }
   return id
 }
 
 export function getSession(id: string): StoredSession | null {
-  ensureDir()
-  const p = sessionPath(id)
-  if (!fs.existsSync(p)) return null
   try {
+    ensureDir()
+    const p = sessionPath(id)
+    if (!fs.existsSync(p)) return null
     return JSON.parse(fs.readFileSync(p, 'utf-8')) as StoredSession
   } catch {
     return null
@@ -54,7 +62,11 @@ export function updateSession(id: string, updates: Partial<StoredSession>): Stor
   const session = getSession(id)
   if (!session) return null
   const updated = { ...session, ...updates, id, updatedAt: new Date().toISOString() }
-  fs.writeFileSync(sessionPath(id), JSON.stringify(updated, null, 2), 'utf-8')
+  try {
+    fs.writeFileSync(sessionPath(id), JSON.stringify(updated, null, 2), 'utf-8')
+  } catch {
+    // Read-only filesystem (Vercel) — ignore
+  }
   return updated
 }
 

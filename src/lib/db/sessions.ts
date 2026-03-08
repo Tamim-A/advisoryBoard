@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface SessionRow {
   id: string
-  user_id: string
+  user_id: string | null
   title: string
   company_profile: Record<string, unknown>
   decision: Record<string, unknown>
@@ -17,7 +17,7 @@ export interface SessionRow {
 
 // إنشاء جلسة جديدة
 export async function createSessionDB(data: {
-  userId: string
+  userId: string | null
   title: string
   companyProfile: Record<string, unknown>
   decision: Record<string, unknown>

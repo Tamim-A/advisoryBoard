@@ -15,29 +15,25 @@ export async function POST(req: NextRequest) {
 
     const title = (decision.title as string) || (companyProfile.company_name as string) || 'جلسة استشارية'
 
-    // ─── Supabase mode (authenticated users only) ──────────
+    // ─── Supabase mode (production path) ──────────────────
+    // Always use Supabase when configured — even for unauthenticated users (user_id = null).
+    // This is the only writable storage on Vercel (filesystem is read-only).
     if (hasSupabaseServerConfig()) {
-      // TODO: re-enable mandatory auth when Auth is fully activated
       const supabase = createServerSupabaseClient()
       const { data: { user } } = await supabase.auth.getUser()
-      // if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-      if (user) {
-        // Authenticated → save to Supabase DB
-        const session = await createSessionDB({
-          userId: user.id,
-          title,
-          companyProfile,
-          decision,
-          additionalContext: { additionalAdvisors, specificConcerns },
-          sessionType: sessionType || 'Full',
-        })
-        return NextResponse.json({ sessionId: session.id })
-      }
-      // Not authenticated → fall through to JSON storage below
+      const session = await createSessionDB({
+        userId: user?.id ?? null,
+        title,
+        companyProfile,
+        decision,
+        additionalContext: { additionalAdvisors, specificConcerns },
+        sessionType: sessionType || 'Full',
+      })
+      return NextResponse.json({ sessionId: session.id })
     }
 
-    // ─── JSON storage fallback ─────────────────────────────
+    // ─── JSON storage fallback (localhost without Supabase only) ──
     const sessionId = saveSession({
       companyProfile,
       decision,
