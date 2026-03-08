@@ -1,0 +1,32 @@
+{
+  "companyProfile": {
+    "company_name": "فلررفل",
+    "sector": "صحة",
+    "company_size": "صغيرة ومتوسطة",
+    "stage": "إيرادات مبكرة",
+    "annual_revenue": "",
+    "team_size": ""
+  },
+  "decision": {
+    "title": "قبقف",
+    "description": "فلرل",
+    "category": "منتج",
+    "primary_goal": "",
+    "estimated_cost": "",
+    "expected_timeline": "",
+    "alternatives": "",
+    "constraints": ""
+  },
+  "additionalAdvisors": [
+    "strategic",
+    "financial",
+    "market",
+    "technical"
+  ],
+  "sessionType": "Quick",
+  "specificConcerns": "",
+  "status": "running",
+  "id": "0abd3c68-2f4b-4bba-a689-856f2f7e1c9e",
+  "createdAt": "2026-03-07T20:00:50.124Z",
+  "updatedAt": "2026-03-07T20:01:23.892Z"
+}

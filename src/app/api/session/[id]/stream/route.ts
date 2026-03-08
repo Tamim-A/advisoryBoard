@@ -4,6 +4,7 @@ import { runAdvisorySessionStream } from '@/lib/engine/advisory-engine'
 import { hasApiKey } from '@/lib/claude/client'
 import { mockSessionData } from '@/data/mockData'
 import { hasSupabaseServerConfig } from '@/lib/supabase/admin'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import {
   getSessionDB,
   updateSessionDB,
@@ -24,6 +25,13 @@ export async function GET(
   let session = hasSupabaseServerConfig() ? await getSessionDB(params.id) : null
   if (session) {
     useSupabase = true
+    // Verify the requesting user owns this session
+    const supabase = createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const sessionRow = session as { user_id?: string }
+    if (user && sessionRow.user_id && sessionRow.user_id !== user.id) {
+      return new Response('Forbidden', { status: 403 })
+    }
   } else {
     session = getSession(params.id) as typeof session
   }

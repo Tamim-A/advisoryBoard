@@ -258,17 +258,18 @@ function GroupedSessions({ sessions }: { sessions: DisplaySession[] }) {
 
 // ─── Dashboard Page ────────────────────────────────
 export default function DashboardPage() {
-  const [sessions, setSessions] = useState<DisplaySession[]>(MOCK_SESSIONS_LIST)
-  const [loading, setLoading] = useState(false)
+  const [sessions, setSessions] = useState<DisplaySession[]>(hasSupabaseConfig() ? [] : MOCK_SESSIONS_LIST)
+  const [loading, setLoading] = useState(hasSupabaseConfig())
 
   useEffect(() => {
     if (!hasSupabaseConfig()) return
 
-    setLoading(true)
     const supabase = createClient()
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
+        // Not authenticated — show mock demo session
+        setSessions(MOCK_SESSIONS_LIST)
         setLoading(false)
         return
       }
@@ -278,22 +279,21 @@ export default function DashboardPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .then(({ data }) => {
-          if (data && data.length > 0) {
-            setSessions(
-              data.map((s) => {
-                const profile = (s.company_profile ?? {}) as Record<string, string>
-                return {
-                  id: s.id,
-                  title: s.title,
-                  session_type: s.session_type,
-                  final_verdict: s.final_verdict ?? 'DELAY',
-                  confidence_level: s.confidence_level ?? 0,
-                  created_at: new Date(s.created_at).toLocaleDateString('ar-SA'),
-                  company_name: profile.company_name ?? '—',
-                }
-              })
-            )
-          }
+          // Always replace with user's real sessions (empty list means no sessions yet)
+          setSessions(
+            (data ?? []).map((s) => {
+              const profile = (s.company_profile ?? {}) as Record<string, string>
+              return {
+                id: s.id,
+                title: s.title,
+                session_type: s.session_type,
+                final_verdict: s.final_verdict ?? 'DELAY',
+                confidence_level: s.confidence_level ?? 0,
+                created_at: new Date(s.created_at).toLocaleDateString('ar-SA'),
+                company_name: profile.company_name ?? '—',
+              }
+            })
+          )
           setLoading(false)
         })
     })
@@ -354,7 +354,7 @@ export default function DashboardPage() {
         <StatCard
           icon="🧠"
           label="المستشارون النشطون"
-          value={9}
+          value={4}
           sub="جاهزون للتحليل"
           iconBg="rgba(167, 139, 250, 0.15)"
           delay={0.3}
@@ -388,7 +388,7 @@ export default function DashboardPage() {
                 ✨ ابدأ جلسة استشارية جديدة
               </h2>
               <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                حلّل قرارك القادم مع ٩ مستشارين متخصصين
+                حلّل قرارك القادم مع ٤ مستشارين متخصصين
               </p>
             </div>
             <span
@@ -413,6 +413,11 @@ export default function DashboardPage() {
           {loading ? 'جارٍ تحميل الجلسات...' : 'الجلسات السابقة'}
         </motion.h2>
         <GroupedSessions sessions={sessions} />
+        {hasSupabaseConfig() && sessions.length > 0 && (
+          <p className="text-xs mt-4 text-center" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+            🗓️ تُحفظ الجلسات لمدة 180 يومًا من تاريخ الإنشاء
+          </p>
+        )}
       </div>
     </div>
   )

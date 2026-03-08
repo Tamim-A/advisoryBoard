@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import AppSidebar from '@/components/AppSidebar'
 import SummaryTab from '@/components/session/SummaryTab'
 import AdvisorDetailTab from '@/components/session/AdvisorDetailTab'
-import DiscussionTab from '@/components/session/DiscussionTab'
 import ScenariosTab from '@/components/session/ScenariosTab'
 import VerdictTab from '@/components/session/VerdictTab'
 import { type SessionData, type AdvisorAnalysis, type DiscussionPoint } from '@/data/mockData'
 import { type AdvisorOutput, type SynthesisOutput } from '@/lib/prompts/types'
 import { MOCK_SESSION } from '@/lib/mock-data'
+import { exportSessionPDF } from '@/lib/utils/pdf-export'
 
 // ─── Types ──────────────────────────────────────────────
 type AdvisorStatus = 'loading' | 'done' | 'error'
@@ -22,10 +22,10 @@ const SESSION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   Deep:  { label: 'معمّقة', color: '#A78BFA' },
 }
 
-const MAIN_TABS: Array<{ id: MainTab; label: string; icon: string }> = [
+const MAIN_TABS: Array<{ id: MainTab; label: string; icon: string; premium?: boolean }> = [
   { id: 'summary',    label: 'الملخص التنفيذي', icon: '📋' },
   { id: 'advisor',    label: 'المستشارون',       icon: '👥' },
-  { id: 'discussion', label: 'نقاش المستشارين',  icon: '⚔️' },
+  { id: 'discussion', label: 'نقاش المستشارين',  icon: '⚔️', premium: true },
   { id: 'scenarios',  label: 'السيناريوهات',     icon: '📊' },
   { id: 'verdict',    label: 'الحكم النهائي',    icon: '✅' },
 ]
@@ -340,17 +340,33 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                 </span>
               )}
             </div>
-            {globalLoading ? (
-              <span className="flex items-center gap-1.5 text-xs flex-shrink-0"
-                style={{ color: 'var(--accent-gold)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                <span className="w-3 h-3 border-2 border-[#D4A853]/30 border-t-[#D4A853] rounded-full animate-spin" />
-                جاري التحليل ({doneCount}/{totalAdvisors})
-              </span>
-            ) : (
-              <span className="text-xs flex-shrink-0" style={{ color: '#22C55E', fontFamily: 'IBM Plex Sans Arabic' }}>
-                ✅ مكتمل
-              </span>
-            )}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {globalLoading ? (
+                <span className="flex items-center gap-1.5 text-xs"
+                  style={{ color: 'var(--accent-gold)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                  <span className="w-3 h-3 border-2 border-[#D4A853]/30 border-t-[#D4A853] rounded-full animate-spin" />
+                  جاري التحليل ({doneCount}/{totalAdvisors})
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: '#22C55E', fontFamily: 'IBM Plex Sans Arabic' }}>
+                  ✅ مكتمل
+                </span>
+              )}
+              {!globalLoading && sessionData && (
+                <button
+                  onClick={() => exportSessionPDF(sessionData)}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-200"
+                  style={{
+                    background: 'rgba(212,168,83,0.1)',
+                    border: '1px solid var(--border-gold)',
+                    color: 'var(--accent-gold)',
+                    fontFamily: 'IBM Plex Sans Arabic',
+                  }}
+                >
+                  تصدير PDF
+                </button>
+              )}
+            </div>
           </div>
           <div className="w-full h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
             <motion.div
@@ -414,9 +430,10 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                       opacity: isLocked ? 0.4 : 1,
                     }}>
                     <span className="text-base">{tab.icon}</span>
-                    <span className="text-xs" style={{ fontFamily: 'IBM Plex Sans Arabic', color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)' }}>
+                    <span className="text-xs flex-1" style={{ fontFamily: 'IBM Plex Sans Arabic', color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)' }}>
                       {tab.label}
                     </span>
+                    {tab.premium && <span className="text-xs flex-shrink-0">🔒</span>}
                   </button>
                 )
               })}
@@ -437,7 +454,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                     color: activeTab === tab.id && !selectedAdvisor ? 'var(--accent-gold)' : 'var(--text-secondary)',
                     fontFamily: 'IBM Plex Sans Arabic',
                   }}>
-                  {tab.icon} {tab.label}
+                  {tab.icon} {tab.label}{tab.premium ? ' 🔒' : ''}
                 </button>
               ))}
             </div>
@@ -547,9 +564,23 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
                 {activeTab === 'discussion' && !selectedAdvisor && (
-                  !globalLoading && sessionData
-                    ? <DiscussionTab discussion={sessionData.discussion} />
-                    : <LoadingPlaceholder message="ننتظر اكتمال كل المستشارين لعرض النقاش..." />
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl"
+                    style={{ border: '1px solid var(--border-gold)', background: 'rgba(212,168,83,0.04)' }}
+                  >
+                    <div className="text-5xl mb-4">🔒</div>
+                    <h3 className="text-xl font-black mb-2" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+                      نقاش المستشارين — ميزة متقدمة
+                    </h3>
+                    <p className="text-sm max-w-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic', lineHeight: 1.8 }}>
+                      ستتوفر هذه الميزة قريبًا ضمن الباقات المخصصة، حيث يتناقش المستشارون فيما بينهم ويعرضون وجهات نظر متعارضة لمساعدتك في اتخاذ القرار الأمثل
+                    </p>
+                    <span className="mt-5 text-xs px-4 py-2 rounded-full" style={{ background: 'rgba(212,168,83,0.1)', color: 'var(--accent-gold)', border: '1px solid var(--border-gold)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                      قريبًا
+                    </span>
+                  </motion.div>
                 )}
                 {activeTab === 'scenarios' && !selectedAdvisor && (
                   !globalLoading && sessionData

@@ -83,16 +83,16 @@ async function runSingleAdvisor(
 
   try {
     // callAdvisor already handles 429 retry internally (client.ts)
-    const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 1500) as unknown as AdvisorOutput
+    const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000) as unknown as AdvisorOutput
     return { ...result, id: advisorId, name: config.name, icon: config.icon }
   } catch (error: unknown) {
     const e = error as { status?: number; error?: { type?: string } }
     // If rate limit still hits after client retry, wait longer and try once more
     if (e?.status === 429 || e?.error?.type === 'rate_limit_error') {
       console.log(`[Engine] Rate limit for ${advisorId} — waiting 20s for final retry...`)
-      await delay(20000)
+      await delay(40000)
       try {
-        const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 1500) as unknown as AdvisorOutput
+        const result = await callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000) as unknown as AdvisorOutput
         return { ...result, id: advisorId, name: config.name, icon: config.icon }
       } catch {
         console.error(`[Engine] Final retry failed for ${advisorId}`)
@@ -133,7 +133,7 @@ async function runAdvisorsSequential(
 async function runDebate(advisorResults: AdvisorOutput[]): Promise<DebateOutput> {
   try {
     const userMessage = buildDebateMessage(advisorResults)
-    const result = await callAdvisor(DEBATE_PROMPT, userMessage, 2000) as unknown as DebateOutput
+    const result = await callAdvisor(DEBATE_PROMPT, userMessage, 4000) as unknown as DebateOutput
     return result
   } catch {
     return { points: [] }
@@ -148,7 +148,7 @@ async function runSynthesis(
   decision: Decision
 ): Promise<SynthesisOutput> {
   const userMessage = buildSynthesisMessage(advisorResults, debate, weights, decision)
-  const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 2000, true) as unknown as SynthesisOutput
+  const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 4000, true) as unknown as SynthesisOutput
   return result
 }
 

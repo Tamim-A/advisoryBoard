@@ -1,0 +1,32 @@
+{
+  "companyProfile": {
+    "company_name": "علم هب",
+    "sector": "تعليم",
+    "company_size": "شركة ناشئة",
+    "stage": "إيرادات مبكرة",
+    "annual_revenue": "",
+    "team_size": ""
+  },
+  "decision": {
+    "title": "التوسع للدولة أخرى ",
+    "description": "نحن شركة متخصصة بالتقديم للطلبة على الدراسة بالخارج عن طريق منصة إليكترونية حاليا نقدم للطلبة على جامعات بريطانية ونود التوسع لدولة أخرى وهي أمريكا طبعا نحن شركة في السعودية شكرا ",
+    "category": "توسع",
+    "primary_goal": "التوسع للدولة أخرى ",
+    "estimated_cost": "",
+    "expected_timeline": "",
+    "alternatives": "",
+    "constraints": ""
+  },
+  "additionalAdvisors": [
+    "strategic",
+    "financial",
+    "market",
+    "technical"
+  ],
+  "sessionType": "Deep",
+  "specificConcerns": "",
+  "status": "running",
+  "id": "24bbabb4-09fa-490a-9b74-cc7952a7db5f",
+  "createdAt": "2026-03-07T20:37:14.357Z",
+  "updatedAt": "2026-03-07T20:37:18.584Z"
+}

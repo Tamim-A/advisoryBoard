@@ -22,7 +22,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 export async function callAdvisor(
   systemPrompt: string,
   userMessage: string,
-  maxTokens = 1500,
+  maxTokens = 4000,
   useSynthesisModel = false
 ): Promise<Record<string, unknown>> {
   const model = useSynthesisModel ? SYNTHESIS_MODEL : ADVISOR_MODEL
@@ -61,7 +61,7 @@ export async function callAdvisor(
 export async function* callAdvisorStream(
   systemPrompt: string,
   userMessage: string,
-  maxTokens = 1500
+  maxTokens = 4000
 ): AsyncGenerator<string> {
   const stream = await getClient().messages.stream({
     model: ADVISOR_MODEL,

@@ -1,0 +1,1 @@
+{"version":1,"functions":{"/api/session/[id]/stream":{"maxDuration":300},"/api/session/[id]/run":{"maxDuration":300}}}
