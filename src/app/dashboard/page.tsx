@@ -201,11 +201,29 @@ function GroupedSessions({ sessions }: { sessions: DisplaySession[] }) {
 
   if (entries.length === 0) {
     return (
-      <div className="glass rounded-2xl p-8 text-center">
-        <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-          لا توجد جلسات سابقة — ابدأ جلستك الاستشارية الأولى
-        </p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass rounded-2xl p-10 flex flex-col items-center text-center gap-4"
+        style={{ border: '1px solid var(--border-gold)' }}
+      >
+        <span className="text-4xl">📋</span>
+        <div>
+          <p className="text-lg font-bold mb-1" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+            لا توجد جلسات سابقة
+          </p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+            ابدأ جلستك الاستشارية الأولى وحلّل قرارك من ٤ زوايا متخصصة
+          </p>
+        </div>
+        <Link
+          href="/session/new"
+          className="btn-gold px-6 py-2.5 rounded-xl text-sm font-bold"
+          style={{ fontFamily: 'Tajawal' }}
+        >
+          ابدأ الآن →
+        </Link>
+      </motion.div>
     )
   }
 
@@ -268,8 +286,8 @@ export default function DashboardPage() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
-        // Not authenticated — show mock demo session
-        setSessions(MOCK_SESSIONS_LIST)
+        // Not authenticated — show empty state (never show other users' data)
+        setSessions([])
         setLoading(false)
         return
       }

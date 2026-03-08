@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { hasSupabaseConfig, createClient } from '@/lib/supabase/client'
 
 const navItems = [
   { href: '/dashboard', label: 'الرئيسية', icon: '🏠' },
@@ -15,6 +16,20 @@ const navItems = [
 export default function AppSidebar() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [userDisplay, setUserDisplay] = useState<{ name: string; initial: string } | null>(null)
+
+  useEffect(() => {
+    if (!hasSupabaseConfig()) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      const email = user.email ?? ''
+      const fullName = (user.user_metadata?.full_name as string | undefined) ?? ''
+      const name = fullName || email.split('@')[0] || 'مستخدم'
+      const initial = name.charAt(0).toUpperCase()
+      setUserDisplay({ name, initial })
+    })
+  }, [])
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -69,14 +84,14 @@ export default function AppSidebar() {
       <div className="px-4 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-3">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
             style={{ background: 'rgba(212, 168, 83, 0.15)', color: 'var(--accent-gold)' }}
           >
-            م
+            {userDisplay?.initial ?? '؟'}
           </div>
-          <div>
-            <p className="text-xs font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
-              مطعم نخيل
+          <div className="min-w-0">
+            <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
+              {userDisplay?.name ?? 'مستخدم جديد'}
             </p>
             <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
               الخطة المجانية
