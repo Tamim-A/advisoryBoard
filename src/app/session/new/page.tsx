@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation'
 import AppSidebar from '@/components/AppSidebar'
 import { hasSupabaseConfig, createClient } from '@/lib/supabase/client'
 
-const FREE_SESSION_LIMIT = 2
-
 // ─── Types ───────────────────────────────────────────
 interface FormData {
   // Step 1
@@ -257,6 +255,8 @@ export default function NewSessionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [trialLimitReached, setTrialLimitReached] = useState(false)
   const [sessionCount, setSessionCount] = useState<number | null>(null)
+  const [sessionLimit, setSessionLimit] = useState(2)
+  const [isVipUser, setIsVipUser] = useState(false)
   const [previousCompanies, setPreviousCompanies] = useState<Array<{
     name: string; sector: string; company_size: string; stage: string; annual_revenue: string; team_size: string
   }>>([])
@@ -277,9 +277,11 @@ export default function NewSessionPage() {
       try {
         const r = await fetch('/api/session/count')
         if (r.ok) {
-          const { count } = await r.json() as { count: number }
+          const { count, limit, vip } = await r.json() as { count: number; limit: number; vip: boolean }
           setSessionCount(count)
-          if (count >= FREE_SESSION_LIMIT) setTrialLimitReached(true)
+          setSessionLimit(limit)
+          setIsVipUser(vip)
+          if (count >= limit) setTrialLimitReached(true)
         }
       } catch { /* ignore */ }
     })
@@ -423,7 +425,7 @@ export default function NewSessionPage() {
                 استنفدت جلساتك المجانية
               </h2>
               <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                الخطة المجانية تتيح {FREE_SESSION_LIMIT} جلسات. للحصول على المزيد تواصل معنا.
+                الخطة المجانية تتيح {sessionLimit} جلسات. للحصول على المزيد تواصل معنا.
               </p>
               <div className="space-y-3">
                 <a
@@ -477,18 +479,24 @@ export default function NewSessionPage() {
             <div
               className="mb-5 rounded-xl px-4 py-3 flex items-center justify-between text-sm"
               style={{
-                background: sessionCount >= FREE_SESSION_LIMIT - 1 ? 'rgba(239,68,68,0.08)' : 'rgba(212,168,83,0.06)',
-                border: `1px solid ${sessionCount >= FREE_SESSION_LIMIT - 1 ? 'rgba(239,68,68,0.2)' : 'rgba(212,168,83,0.2)'}`,
+                background: isVipUser
+                  ? 'rgba(212,168,83,0.08)'
+                  : sessionCount >= sessionLimit - 1 ? 'rgba(239,68,68,0.08)' : 'rgba(212,168,83,0.06)',
+                border: `1px solid ${isVipUser
+                  ? 'rgba(212,168,83,0.35)'
+                  : sessionCount >= sessionLimit - 1 ? 'rgba(239,68,68,0.2)' : 'rgba(212,168,83,0.2)'}`,
                 fontFamily: 'IBM Plex Sans Arabic',
               }}
             >
-              <span style={{ color: sessionCount >= FREE_SESSION_LIMIT - 1 ? '#EF4444' : 'var(--text-secondary)' }}>
-                {FREE_SESSION_LIMIT - sessionCount === 0
-                  ? 'استنفدت جلساتك المجانية'
-                  : `متبقي ${FREE_SESSION_LIMIT - sessionCount} جلسة مجانية`}
+              <span style={{ color: isVipUser ? 'var(--accent-gold)' : sessionCount >= sessionLimit - 1 ? '#EF4444' : 'var(--text-secondary)' }}>
+                {isVipUser
+                  ? '⭐ حساب VIP'
+                  : sessionLimit - sessionCount === 0
+                    ? 'استنفدت جلساتك المجانية'
+                    : `متبقي ${sessionLimit - sessionCount} جلسة مجانية`}
               </span>
               <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                {sessionCount}/{FREE_SESSION_LIMIT} جلسات
+                {sessionCount}/{sessionLimit} جلسات
               </span>
             </div>
           )}

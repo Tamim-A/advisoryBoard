@@ -17,17 +17,29 @@ export default function AppSidebar() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userDisplay, setUserDisplay] = useState<{ name: string; initial: string } | null>(null)
+  const [isVipUser, setIsVipUser] = useState(false)
+  const [sessionCount, setSessionCount] = useState<number | null>(null)
+  const [sessionLimit, setSessionLimit] = useState(2)
 
   useEffect(() => {
     if (!hasSupabaseConfig()) return
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       const email = user.email ?? ''
       const fullName = (user.user_metadata?.full_name as string | undefined) ?? ''
       const name = fullName || email.split('@')[0] || 'مستخدم'
       const initial = name.charAt(0).toUpperCase()
       setUserDisplay({ name, initial })
+      try {
+        const r = await fetch('/api/session/count')
+        if (r.ok) {
+          const { count, limit, vip } = await r.json() as { count: number; limit: number; vip: boolean }
+          setSessionCount(count)
+          setSessionLimit(limit)
+          setIsVipUser(vip)
+        }
+      } catch { /* ignore */ }
     })
   }, [])
 
@@ -93,9 +105,15 @@ export default function AppSidebar() {
             <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
               {userDisplay?.name ?? 'مستخدم جديد'}
             </p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-              الخطة المجانية
-            </p>
+            {isVipUser ? (
+              <p className="text-xs font-bold" style={{ color: 'var(--accent-gold)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                حساب VIP ⭐ — {sessionCount ?? '—'}/{sessionLimit} جلسة
+              </p>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                الخطة المجانية{sessionCount !== null ? ` — ${sessionCount}/${sessionLimit} جلسات` : ''}
+              </p>
+            )}
           </div>
         </div>
       </div>

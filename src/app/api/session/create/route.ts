@@ -3,8 +3,7 @@ import { saveSession } from '@/lib/storage'
 import { hasSupabaseServerConfig } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createSessionDB, getUserSessionCount } from '@/lib/db/sessions'
-
-const FREE_SESSION_LIMIT = 2
+import { getSessionLimit } from '@/lib/vip'
 
 function sanitize(value: unknown): string {
   if (typeof value !== 'string') return ''
@@ -45,10 +44,11 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
+        const limit = getSessionLimit(user.email)
         const sessionCount = await getUserSessionCount(user.id)
-        if (sessionCount >= FREE_SESSION_LIMIT) {
+        if (sessionCount >= limit) {
           return NextResponse.json(
-            { error: 'trial_limit_reached', limit: FREE_SESSION_LIMIT },
+            { error: 'trial_limit_reached', limit },
             { status: 403 }
           )
         }
