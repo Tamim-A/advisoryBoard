@@ -36,9 +36,9 @@ const itemVariants = {
 }
 
 const stats = [
-  { number: '٤', label: 'مستشارين متخصصين' },
+  { number: '٥', label: 'مستشارين نشطين' },
   { number: 'دقائق', label: 'توصية تنفيذية في' },
-  { number: 'Claude', label: 'مدعوم بـ AI' },
+  { number: 'AI', label: 'مدعوم بالذكاء الاصطناعي' },
 ]
 
 export default function HeroSection() {
@@ -136,7 +136,7 @@ export default function HeroSection() {
             style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}
           >
             منصة ذكاء اصطناعي تحلل قراراتك من{' '}
-            <span style={{ color: 'var(--accent-gold)' }}>٤ زوايا متخصصة</span> وتصدر توصية تنفيذية مدعومة بالبيانات
+            <span style={{ color: 'var(--accent-gold)' }}>٩ زوايا متخصصة</span> وتصدر توصية تنفيذية مدعومة بالبيانات
           </motion.p>
 
           {/* CTA Buttons */}

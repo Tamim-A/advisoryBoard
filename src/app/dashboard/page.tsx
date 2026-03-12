@@ -213,7 +213,7 @@ function GroupedSessions({ sessions }: { sessions: DisplaySession[] }) {
             لا توجد جلسات سابقة
           </p>
           <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-            ابدأ جلستك الاستشارية الأولى وحلّل قرارك من ٤ زوايا متخصصة
+            ابدأ جلستك الاستشارية الأولى وحلّل قرارك من ٩ زوايا متخصصة
           </p>
         </div>
         <Link

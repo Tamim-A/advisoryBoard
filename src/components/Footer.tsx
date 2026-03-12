@@ -59,8 +59,7 @@ export default function Footer() {
                 fontFamily: 'IBM Plex Sans Arabic, sans-serif',
               }}
             >
-              مدعوم بالذكاء الاصطناعي من{' '}
-              <span style={{ color: 'var(--accent-gold)' }}>Anthropic</span>
+              مدعوم بالذكاء الاصطناعي
             </span>
           </div>
         </div>
@@ -74,7 +73,7 @@ export default function Footer() {
             fontFamily: 'IBM Plex Sans Arabic, sans-serif',
           }}
         >
-          © 2025 Advisory Board. جميع الحقوق محفوظة.
+          © 2026 Advisory Board. جميع الحقوق محفوظة.
         </div>
       </div>
     </footer>

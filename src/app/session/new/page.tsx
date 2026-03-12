@@ -204,15 +204,15 @@ const STEPS = [
 
 // Active advisors (available now)
 const ACTIVE_ADVISORS_UI = [
-  { id: 'strategic',  icon: '🎯', name: 'المستشار الاستراتيجي', sub: 'التمركز والميزة التنافسية والرؤية' },
-  { id: 'financial',  icon: '💰', name: 'المستشار المالي',       sub: 'الربحية والتدفقات والجدوى المالية' },
-  { id: 'market',     icon: '📊', name: 'مستشار السوق',          sub: 'الطلب والمنافسة والعملاء' },
-  { id: 'technical',  icon: '🔧', name: 'المستشار التقني',       sub: 'الجاهزية التقنية والبنية التحتية' },
+  { id: 'strategic',   icon: '🎯', name: 'المستشار الاستراتيجي', sub: 'التمركز والميزة التنافسية والرؤية' },
+  { id: 'financial',   icon: '💰', name: 'المستشار المالي',       sub: 'الربحية والتدفقات والجدوى المالية' },
+  { id: 'market',      icon: '📊', name: 'مستشار السوق',          sub: 'الطلب والمنافسة والعملاء' },
+  { id: 'technical',   icon: '🔧', name: 'المستشار التقني',       sub: 'الجاهزية التقنية والبنية التحتية' },
+  { id: 'operational', icon: '⚙️', name: 'المستشار التشغيلي',    sub: 'قابلية التنفيذ وجاهزية الفرق' },
 ]
 
 // Coming-soon advisors (disabled)
 const COMING_SOON_ADVISORS_UI = [
-  { id: 'operational',    icon: '⚙️', name: 'المستشار التشغيلي',  sub: 'قابلية التنفيذ وجاهزية الفرق' },
   { id: 'legal',          icon: '⚖️', name: 'المستشار القانوني',  sub: 'المخاطر القانونية والتنظيمية' },
   { id: 'growth',         icon: '🚀', name: 'مستشار النمو',       sub: 'الاكتساب والاحتفاظ والتوسع' },
   { id: 'risk',           icon: '🛡️', name: 'مستشار المخاطر',    sub: 'تقييم شامل للمخاطر' },
@@ -302,7 +302,7 @@ export default function NewSessionPage() {
     alternatives: '',
     constraints: '',
     specificConcerns: '',
-    coreAdvisors: ['strategic', 'financial', 'market', 'technical'],
+    coreAdvisors: ['strategic', 'financial', 'market', 'technical', 'operational'],
     additionalAdvisors: [],
     sessionType: 'Full',
   })
@@ -470,7 +470,7 @@ export default function NewSessionPage() {
               جلسة استشارية جديدة
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-              أدخل تفاصيل قرارك وسيحلله المجلس من ٤ زوايا
+              أدخل تفاصيل قرارك وسيحلله المجلس من ٩ زوايا
             </p>
           </motion.div>
 

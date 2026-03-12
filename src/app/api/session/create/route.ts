@@ -7,7 +7,13 @@ import { getUserPlan } from '@/lib/db/plans'
 
 function sanitize(value: unknown): string {
   if (typeof value !== 'string') return ''
-  return value.replace(/<[^>]*>/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim()
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/\[SYSTEM\]/gi, '')
+    .replace(/\[INST\]/gi, '')
+    .replace(/ignore\s+previous\s+instructions?/gi, '')
+    .trim()
 }
 
 function sanitizeRecord(obj: Record<string, unknown>): Record<string, string> {

@@ -22,8 +22,8 @@ import {
 } from '../prompts/types'
 
 // ─── Active vs coming-soon advisors ────────────────────
-export const ACTIVE_ADVISORS = ['strategic', 'financial', 'market', 'technical']
-export const COMING_SOON_ADVISORS = ['operational', 'legal', 'growth', 'risk', 'sustainability']
+export const ACTIVE_ADVISORS = ['strategic', 'financial', 'market', 'technical', 'operational']
+export const COMING_SOON_ADVISORS = ['legal', 'growth', 'risk', 'sustainability']
 
 // ─── Advisor registry ───────────────────────────────────
 const ADVISOR_REGISTRY: Record<
