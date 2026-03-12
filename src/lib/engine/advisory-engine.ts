@@ -173,6 +173,42 @@ async function runDebate(advisorResults: AdvisorOutput[]): Promise<DebateOutput>
   }
 }
 
+// ─── Fallback synthesis when engine fails ────────────────
+function buildFallbackSynthesis(advisorResults: AdvisorOutput[]): SynthesisOutput {
+  const usable = successfulAdvisors(advisorResults)
+  const source = usable.length > 0 ? usable : advisorResults
+
+  const verdicts = source.map((a) => a.verdict).filter(Boolean)
+  const verdict: SynthesisOutput['overallVerdict'] =
+    (verdicts[0] as SynthesisOutput['overallVerdict']) || 'APPROVE_WITH_CONDITIONS'
+
+  const avgConf = source.reduce((s, a) => s + (typeof a.confidence === 'number' ? a.confidence : 50), 0) /
+    Math.max(source.length, 1)
+
+  const topFindings = source
+    .flatMap((a) => a.keyPoints?.slice(0, 1) ?? [])
+    .filter(Boolean) as string[]
+
+  const conditions = source
+    .flatMap((a) => a.risks?.slice(0, 1).map((r) => r.mitigation) ?? [])
+    .filter(Boolean) as string[]
+
+  return {
+    overallVerdict: verdict,
+    overallConfidence: Math.min(Math.round(avgConf) / 100, 1),
+    executiveSummary: source[0]?.summary || 'يرجى مراجعة تقارير المستشارين للحصول على التفاصيل.',
+    topFindings: topFindings.length > 0 ? topFindings : ['راجع تقارير المستشارين للتفاصيل'],
+    conditions: conditions.length > 0 ? conditions : ['مراجعة التحليلات بعناية قبل اتخاذ القرار'],
+    verdictReason: 'بناءً على تحليل المستشارين المتاحين.',
+    whatCouldChange: 'مراجعة المعطيات الأساسية قد تغير التوصية.',
+    plan: {
+      days30: ['مراجعة تقارير المستشارين بعناية'],
+      days60: ['اتخاذ القرار النهائي بعد دراسة متأنية'],
+      days90: ['تقييم النتائج والمتابعة'],
+    },
+  }
+}
+
 // ─── Run synthesis engine ───────────────────────────────
 async function runSynthesis(
   advisorResults: AdvisorOutput[],
@@ -180,13 +216,22 @@ async function runSynthesis(
   weights: Record<string, number>,
   decision: Decision
 ): Promise<SynthesisOutput> {
-  // Only pass successful advisor results to synthesis
   const usable = successfulAdvisors(advisorResults)
-  const forSynthesis = usable.length > 0 ? usable : advisorResults // fallback: use all if none succeeded
+  const forSynthesis = usable.length > 0 ? usable : advisorResults
   if (process.env.NODE_ENV === 'development') console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
   const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
-  const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 6000, true) as unknown as SynthesisOutput
-  return result
+  try {
+    const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 8000, true) as unknown as SynthesisOutput
+    // Validate minimum required fields — if missing, fall through to fallback
+    if (result && result.overallVerdict && result.executiveSummary) {
+      return result
+    }
+    if (process.env.NODE_ENV === 'development') console.warn('[Engine] Synthesis returned incomplete data — using fallback')
+    return buildFallbackSynthesis(advisorResults)
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') console.error('[Engine] Synthesis failed — using fallback:', err)
+    return buildFallbackSynthesis(advisorResults)
+  }
 }
 
 // ─── Main orchestrator ──────────────────────────────────

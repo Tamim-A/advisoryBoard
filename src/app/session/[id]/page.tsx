@@ -103,6 +103,32 @@ function LoadingPlaceholder({ message }: { message: string }) {
   )
 }
 
+function RetryMessage({ detail }: { detail?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+      <span className="text-4xl">⏱️</span>
+      <p className="text-base font-bold" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+        تعذّر إنتاج الملخص
+      </p>
+      <p className="text-sm max-w-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic', lineHeight: 1.8 }}>
+        {detail || 'يرجى مراجعة تقارير المستشارين مباشرة أو إعادة المحاولة'}
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+        style={{
+          background: 'rgba(212,168,83,0.1)',
+          border: '1px solid var(--border-gold)',
+          color: 'var(--accent-gold)',
+          fontFamily: 'Tajawal',
+        }}
+      >
+        إعادة المحاولة
+      </button>
+    </div>
+  )
+}
+
 // ─── Main Page ───────────────────────────────────────────
 export default function SessionPage({ params }: { params: { id: string } }) {
   const sessionId = params.id
@@ -114,9 +140,11 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const [sessionMeta, setSessionMeta] = useState<Record<string, unknown>>({})
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [globalLoading, setGlobalLoading] = useState(true)
+  const [timedOut, setTimedOut] = useState(false)
   const [selectedAdvisor, setSelectedAdvisor] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<MainTab>('summary')
   const esRef = useRef<EventSource | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const displayAdvisors: AdvisorAnalysis[] = advisorResults.length > 0
     ? advisorResults as unknown as AdvisorAnalysis[]
@@ -130,6 +158,19 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   useEffect(() => {
 
     setStatuses({ strategic: 'loading', financial: 'loading', market: 'loading', operational: 'loading' })
+
+    // 120-second safety timeout — prevents infinite loading if stream stalls
+    timeoutRef.current = setTimeout(() => {
+      setTimedOut(true)
+      setGlobalLoading(false)
+      esRef.current?.close()
+    }, 120_000)
+
+    const finish = () => {
+      setGlobalLoading(false)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      esRef.current?.close()
+    }
 
     const es = new EventSource(`/api/session/${sessionId}/stream`)
     esRef.current = es
@@ -155,15 +196,18 @@ export default function SessionPage({ params }: { params: { id: string } }) {
       setSynthesis(JSON.parse(e.data) as SynthesisOutput)
     })
 
-    es.addEventListener('done', () => { setGlobalLoading(false); es.close() })
-    es.onerror = () => { setGlobalLoading(false); es.close() }
+    es.addEventListener('done', () => finish())
+    es.onerror = () => finish()
 
     fetch(`/api/session/${sessionId}`)
       .then((r) => r.json())
       .then((d) => setSessionMeta(d))
       .catch(() => {})
 
-    return () => { es.close() }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      es.close()
+    }
   }, [sessionId])
 
   // ─── Rebuild sessionData on synthesis ────────────────
@@ -352,7 +396,11 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                 transition={{ duration: 0.3 }}
               >
                 {activeTab === 'summary' && !selectedAdvisor && (
-                  sessionData ? <SummaryTab session={sessionData} /> : <Skeleton />
+                  sessionData
+                    ? <SummaryTab session={sessionData} />
+                    : timedOut
+                      ? <RetryMessage detail="تعذّر إنتاج الملخص التنفيذي — يرجى مراجعة تقارير المستشارين مباشرة" />
+                      : <Skeleton />
                 )}
                 {activeTab === 'advisor' && selectedAdvisor && activeAdvisorResult && (
                   <>
@@ -440,14 +488,18 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                   </motion.div>
                 )}
                 {activeTab === 'scenarios' && !selectedAdvisor && (
-                  !globalLoading && sessionData
+                  sessionData
                     ? <ScenariosTab session={sessionData} />
-                    : <LoadingPlaceholder message="السيناريوهات ستظهر بعد اكتمال التحليل..." />
+                    : timedOut
+                      ? <RetryMessage detail="تعذّر إنتاج السيناريوهات — يرجى مراجعة تقارير المستشارين مباشرة" />
+                      : <LoadingPlaceholder message="جاري تحليل البيانات... قد يستغرق دقيقتين" />
                 )}
                 {activeTab === 'verdict' && !selectedAdvisor && (
-                  !globalLoading && sessionData
+                  sessionData
                     ? <VerdictTab session={sessionData} />
-                    : <LoadingPlaceholder message="الحكم النهائي يحتاج لاكتمال جميع المستشارين..." />
+                    : timedOut
+                      ? <RetryMessage detail="تعذّر إنتاج الحكم النهائي — يرجى مراجعة تقارير المستشارين مباشرة" />
+                      : <LoadingPlaceholder message="جاري تحليل البيانات... قد يستغرق دقيقتين" />
                 )}
               </motion.div>
             </AnimatePresence>
