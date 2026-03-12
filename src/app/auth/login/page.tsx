@@ -247,26 +247,6 @@ export default function LoginPage() {
                 دخول بحساب Google
               </motion.button>
 
-              {/* Demo login */}
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>أو</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push('/dashboard')}
-                className="w-full py-3 rounded-xl text-sm font-medium transition-all duration-200"
-                style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-muted)',
-                  fontFamily: 'IBM Plex Sans Arabic, sans-serif',
-                }}
-              >
-                دخول تجريبي بدون حساب
-              </button>
-
               <p
                 className="text-xs text-center mt-4"
                 style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}

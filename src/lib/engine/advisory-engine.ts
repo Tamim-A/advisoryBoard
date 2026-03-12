@@ -111,7 +111,7 @@ async function runSingleAdvisor(
     const isTimeout = e?.message?.startsWith('[Timeout]')
     // If rate limit still hits after client retry, wait longer and try once more
     if (!isTimeout && (e?.status === 429 || e?.error?.type === 'rate_limit_error')) {
-      console.log(`[Engine] Rate limit for ${advisorId} — waiting 20s for final retry...`)
+      if (process.env.NODE_ENV === 'development') console.log(`[Engine] Rate limit for ${advisorId} — waiting 20s for final retry...`)
       await delay(20000)
       try {
         const result = await withTimeout(
@@ -121,12 +121,12 @@ async function runSingleAdvisor(
         ) as unknown as AdvisorOutput
         return { ...result, id: advisorId, name: config.name, icon: config.icon }
       } catch {
-        console.error(`[Engine] Final retry failed for ${advisorId}`)
+        if (process.env.NODE_ENV === 'development') console.error(`[Engine] Final retry failed for ${advisorId}`)
         return createFallbackReport(advisorId, 'تجاوز حد الطلبات')
       }
     }
     const reason = isTimeout ? 'استغرق التحليل وقتاً أطول من المتوقع' : 'خطأ تقني'
-    console.error(`[Engine] Error for ${advisorId}:`, error)
+    if (process.env.NODE_ENV === 'development') console.error(`[Engine] Error for ${advisorId}:`, error)
     return createFallbackReport(advisorId, reason)
   }
 }
@@ -141,14 +141,13 @@ async function runAdvisorsSequential(
 
   for (let i = 0; i < advisors.length; i++) {
     const advisorId = advisors[i]
-    console.log(`[Engine] Starting advisor ${i + 1}/${advisors.length}: ${advisorId}`)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting advisor ${i + 1}/${advisors.length}: ${advisorId}`)
     const result = await runSingleAdvisor(advisorId, company, decision)
     results.push(result)
-    console.log(`[Engine] Completed: ${advisorId}`)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Completed: ${advisorId}`)
 
     // Wait 5 seconds between advisors to stay within rate limits
     if (i < advisors.length - 1) {
-      console.log('[Engine] Waiting 5 seconds before next advisor...')
       await delay(5000)
     }
   }
@@ -184,7 +183,7 @@ async function runSynthesis(
   // Only pass successful advisor results to synthesis
   const usable = successfulAdvisors(advisorResults)
   const forSynthesis = usable.length > 0 ? usable : advisorResults // fallback: use all if none succeeded
-  console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
+  if (process.env.NODE_ENV === 'development') console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
   const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
   const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 6000, true) as unknown as SynthesisOutput
   return result
@@ -234,21 +233,20 @@ export async function* runAdvisorySessionStream(
 
   for (let i = 0; i < allAdvisors.length; i++) {
     const advisorId = allAdvisors[i]
-    console.log(`[Engine] Starting advisor ${i + 1}/${allAdvisors.length}: ${advisorId}`)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting advisor ${i + 1}/${allAdvisors.length}: ${advisorId}`)
 
     try {
       const result = await runSingleAdvisor(advisorId, companyProfile, decision)
       advisorResults.push(result)
       if (onAdvisorComplete) onAdvisorComplete(advisorId, result)
       yield { type: 'advisor_complete', data: { advisorId, result } }
-      console.log(`[Engine] Completed: ${advisorId}`)
+      if (process.env.NODE_ENV === 'development') console.log(`[Engine] Completed: ${advisorId}`)
     } catch {
       yield { type: 'advisor_error', data: { advisorId } }
     }
 
     // 5-second delay between advisors
     if (i < allAdvisors.length - 1) {
-      console.log('[Engine] Waiting 5 seconds before next advisor...')
       await delay(5000)
     }
   }

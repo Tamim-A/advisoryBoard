@@ -7,9 +7,8 @@ import SummaryTab from '@/components/session/SummaryTab'
 import AdvisorDetailTab from '@/components/session/AdvisorDetailTab'
 import ScenariosTab from '@/components/session/ScenariosTab'
 import VerdictTab from '@/components/session/VerdictTab'
-import { type SessionData, type AdvisorAnalysis, type DiscussionPoint } from '@/data/mockData'
+import { type SessionData, type AdvisorAnalysis } from '@/data/mockData'
 import { type AdvisorOutput, type SynthesisOutput } from '@/lib/prompts/types'
-import { MOCK_SESSION } from '@/lib/mock-data'
 import { exportSessionPDF } from '@/lib/utils/pdf-export'
 
 // ─── Types ──────────────────────────────────────────────
@@ -42,103 +41,18 @@ const ADVISOR_META: Record<string, { name: string; icon: string }> = {
   sustainability: { name: 'مستشار الاستدامة',      icon: '🌱' },
 }
 
-// ─── Convert MOCK_SESSION to SessionData ─────────────────
-function buildDemoSessionData(id: string): SessionData {
-  const s = MOCK_SESSION
-
-  const advisors: AdvisorAnalysis[] = Object.entries(s.advisorReports).map(([advisorId, report]) => {
-    const meta = ADVISOR_META[advisorId] || { name: report.advisor_name, icon: '🎯' }
-    const scorecardEntries = Object.entries(report.scorecard).filter(([k]) => k !== 'confidence')
-    return {
-      id: advisorId,
-      name: meta.name,
-      icon: meta.icon,
-      scorecard: scorecardEntries.map(([dimension, score]) => ({
-        dimension,
-        score: score as number,
-      })),
-      summary: report.summary,
-      keyPoints: report.key_findings,
-      risks: report.risks.map((r) => ({
-        risk: r.title,
-        impact: (r.impact === 'High' ? 'عالي' : r.impact === 'Medium' ? 'متوسط' : 'منخفض') as 'عالي' | 'متوسط' | 'منخفض',
-        probability: (r.likelihood === 'High' ? 'عالية' : r.likelihood === 'Medium' ? 'متوسطة' : 'منخفضة') as 'عالية' | 'متوسطة' | 'منخفضة',
-        mitigation: r.mitigation,
-      })),
-      scenarios: {
-        best:  { title: 'أفضل حالة',       description: report.scenarios.best_case },
-        base:  { title: 'الحالة المتوقعة', description: report.scenarios.base_case },
-        worst: { title: 'أسوأ حالة',       description: report.scenarios.worst_case },
-      },
-      strongestObjection: report.strongest_objection,
-      recommendation: report.recommendation,
-      verdict: 'APPROVE_WITH_CONDITIONS',
-      confidence: Math.round((report.scorecard.confidence as number) * 100),
-    }
-  })
-
-  const discussion: DiscussionPoint[] = s.debate.debate_points.map((pt, i) => ({
-    id: `debate-${i}`,
-    topic: pt.contention,
-    advisorA: { name: pt.side_a.advisor, icon: '🎯', argument: pt.side_a.argument },
-    advisorB: { name: pt.side_b.advisor, icon: '⚙️', argument: pt.side_b.argument },
-    outcome: (
-      pt.resolution === 'conditional' ? 'مشروط' :
-      pt.resolution === 'resolved_for_b' ? 'محسوم' : 'معلّق'
-    ) as 'محسوم' | 'معلّق' | 'مشروط',
-  }))
-
-  const syn = s.synthesis
-
-  return {
-    id,
-    decisionTitle: s.title,
-    sessionType: 'Full',
-    overallVerdict: 'APPROVE_WITH_CONDITIONS',
-    overallConfidence: Math.round(syn.confidence_level * 100),
-    date: '2026-03-01',
-    company: {
-      name: s.companyProfile.company_name,
-      sector: s.companyProfile.sector,
-      size: s.companyProfile.company_size,
-      stage: s.companyProfile.stage,
-      revenue: s.companyProfile.annual_revenue,
-      teamSize: String(s.companyProfile.team_size),
-    },
-    decision: {
-      description: s.decision.description,
-      category: s.decision.category,
-      mainGoal: s.decision.primary_goal,
-      estimatedCost: s.decision.estimated_cost,
-      timeline: s.decision.expected_timeline,
-    },
-    executiveSummary: syn.decision_summary,
-    topFindings: syn.advisors_agree_on,
-    conditions: syn.conditions_before_proceeding,
-    advisors,
-    discussion,
-    plan: {
-      days30: syn.action_plan_30_60_90.day_30,
-      days60: syn.action_plan_30_60_90.day_60,
-      days90: syn.action_plan_30_60_90.day_90,
-    },
-    verdictReason: syn.why_this_decision,
-    whatCouldChange: syn.what_could_change_verdict.join(' — '),
-  }
-}
 
 // ─── Build SessionData from real API results ──────────────
 function buildSessionData(
   base: { id: string; companyProfile: Record<string, string>; decision: Record<string, string>; sessionType: string },
   advisorResults: AdvisorOutput[],
   debate: { points: unknown[] } | null,
-  synthesis: SynthesisOutput,
-  fallbackSession: SessionData
+  synthesis: SynthesisOutput
 ): SessionData {
   return {
-    ...fallbackSession,
     id: base.id,
-    decisionTitle: base.decision?.title || fallbackSession.decisionTitle,
+    date: new Date().toISOString().split('T')[0],
+    decisionTitle: base.decision?.title || '',
     sessionType: (base.sessionType as 'Quick' | 'Full' | 'Deep') || 'Full',
     overallVerdict: synthesis.overallVerdict as SessionData['overallVerdict'],
     overallConfidence: synthesis.overallConfidence,
@@ -192,72 +106,33 @@ function LoadingPlaceholder({ message }: { message: string }) {
 // ─── Main Page ───────────────────────────────────────────
 export default function SessionPage({ params }: { params: { id: string } }) {
   const sessionId = params.id
-  const isMock = sessionId.startsWith('demo-') || sessionId === 'session-001'
-
-  const demoSessionData = isMock ? buildDemoSessionData(sessionId) : null
 
   const [statuses, setStatuses] = useState<Record<string, AdvisorStatus>>({})
   const [advisorResults, setAdvisorResults] = useState<AdvisorOutput[]>([])
   const [debate, setDebate] = useState<{ points: unknown[] } | null>(null)
   const [synthesis, setSynthesis] = useState<SynthesisOutput | null>(null)
   const [sessionMeta, setSessionMeta] = useState<Record<string, unknown>>({})
-  const [sessionData, setSessionData] = useState<SessionData | null>(isMock ? demoSessionData : null)
+  const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [globalLoading, setGlobalLoading] = useState(true)
-  const [demoMode, setDemoMode] = useState(false)
   const [selectedAdvisor, setSelectedAdvisor] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<MainTab>('summary')
   const esRef = useRef<EventSource | null>(null)
 
   const displayAdvisors: AdvisorAnalysis[] = advisorResults.length > 0
     ? advisorResults as unknown as AdvisorAnalysis[]
-    : (sessionData?.advisors || demoSessionData?.advisors || [])
+    : (sessionData?.advisors || [])
 
   const doneCount = Object.values(statuses).filter((s) => s === 'done').length
-  const totalAdvisors = isMock
-    ? (demoSessionData?.advisors.length || 4)
-    : Math.max(Object.keys(statuses).length, 4)
+  const totalAdvisors = Math.max(Object.keys(statuses).length, 4)
   const progress = totalAdvisors > 0 ? Math.round((doneCount / totalAdvisors) * 100) : 0
-
-  // ─── Mock loading simulation ──────────────────────────
-  useEffect(() => {
-    if (!isMock || !demoSessionData) return
-    const advisors = demoSessionData.advisors
-    const delays = [800, 1600, 2400, 3200, 4000, 4800, 5400, 6000, 6600]
-
-    advisors.forEach((advisor, i) => {
-      setStatuses((p) => ({ ...p, [advisor.id]: 'loading' }))
-      setTimeout(() => {
-        setAdvisorResults((p) => [...p, advisor as unknown as AdvisorOutput])
-        setStatuses((p) => ({ ...p, [advisor.id]: 'done' }))
-        if (i === advisors.length - 1) {
-          setDebate({ points: demoSessionData.discussion })
-          setSynthesis({
-            overallVerdict: demoSessionData.overallVerdict,
-            overallConfidence: demoSessionData.overallConfidence,
-            executiveSummary: demoSessionData.executiveSummary,
-            topFindings: demoSessionData.topFindings,
-            conditions: demoSessionData.conditions,
-            verdictReason: demoSessionData.verdictReason,
-            whatCouldChange: demoSessionData.whatCouldChange,
-            plan: demoSessionData.plan,
-          })
-          setGlobalLoading(false)
-        }
-      }, delays[i] ?? (i + 1) * 800)
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMock])
 
   // ─── Real SSE connection ──────────────────────────────
   useEffect(() => {
-    if (isMock) return
 
     setStatuses({ strategic: 'loading', financial: 'loading', market: 'loading', operational: 'loading' })
 
     const es = new EventSource(`/api/session/${sessionId}/stream`)
     esRef.current = es
-
-    es.addEventListener('demo_mode', () => setDemoMode(true))
 
     es.addEventListener('advisor_complete', (e: MessageEvent) => {
       const { advisorId, result } = JSON.parse(e.data) as { advisorId: string; result: AdvisorOutput }
@@ -289,21 +164,19 @@ export default function SessionPage({ params }: { params: { id: string } }) {
       .catch(() => {})
 
     return () => { es.close() }
-  }, [sessionId, isMock])
+  }, [sessionId])
 
   // ─── Rebuild sessionData on synthesis ────────────────
   useEffect(() => {
     if (!synthesis || advisorResults.length === 0) return
-    if (isMock) { setSessionData(demoSessionData); return }
     setSessionData(buildSessionData(
       sessionMeta as { id: string; companyProfile: Record<string, string>; decision: Record<string, string>; sessionType: string },
       advisorResults,
       debate,
-      synthesis,
-      buildDemoSessionData('fallback')
+      synthesis
     ))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [synthesis, advisorResults, debate, sessionMeta, isMock])
+  }, [synthesis, advisorResults, debate, sessionMeta])
 
   const activeAdvisorResult = displayAdvisors.find((a) => a.id === selectedAdvisor)
   const sessionTypeMeta = SESSION_TYPE_LABELS[
@@ -331,12 +204,6 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                 <span className="text-xs px-2.5 py-1 rounded-full font-bold flex-shrink-0"
                   style={{ background: `${sessionTypeMeta.color}18`, color: sessionTypeMeta.color, fontFamily: 'Tajawal' }}>
                   {sessionTypeMeta.label}
-                </span>
-              )}
-              {demoMode && (
-                <span className="text-xs px-2.5 py-1 rounded-full flex-shrink-0"
-                  style={{ background: 'rgba(148,163,184,0.1)', color: '#94A3B8', fontFamily: 'IBM Plex Sans Arabic' }}>
-                  وضع تجريبي
                 </span>
               )}
             </div>
@@ -458,16 +325,6 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                 </button>
               ))}
             </div>
-
-            {/* Demo mode banner */}
-            {demoMode && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="mb-5 rounded-xl px-4 py-3 flex items-center gap-3 text-sm"
-                style={{ background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                <span>🔬</span>
-                <span>وضع تجريبي — أضف <code className="text-xs bg-black/30 px-1 rounded">ANTHROPIC_API_KEY</code> في <code className="text-xs bg-black/30 px-1 rounded">.env.local</code> للتشغيل الحقيقي</span>
-              </motion.div>
-            )}
 
             {/* Loading banner */}
             {globalLoading && activeTab === 'summary' && (

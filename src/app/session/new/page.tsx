@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import AppSidebar from '@/components/AppSidebar'
+import { hasSupabaseConfig, createClient } from '@/lib/supabase/client'
+
+const FREE_SESSION_LIMIT = 2
 
 // ─── Types ───────────────────────────────────────────
 interface FormData {
@@ -33,10 +36,10 @@ interface FormData {
 
 // ─── Floating Label Input ─────────────────────────────
 function FloatInput({
-  label, value, onChange, type = 'text', required, placeholder,
+  label, value, onChange, type = 'text', required, placeholder, maxLength,
 }: {
   label: string; value: string; onChange: (v: string) => void
-  type?: string; required?: boolean; placeholder?: string
+  type?: string; required?: boolean; placeholder?: string; maxLength?: number
 }) {
   const [focused, setFocused] = useState(false)
   const active = focused || value.length > 0
@@ -57,10 +60,11 @@ function FloatInput({
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={active ? placeholder : ''}
+        maxLength={maxLength}
         className="w-full px-4 pt-5 pb-3 rounded-xl text-sm outline-none transition-all duration-300"
         style={{
           background: 'rgba(255,255,255,0.04)',
@@ -75,12 +79,14 @@ function FloatInput({
 }
 
 function FloatTextarea({
-  label, value, onChange, required, rows = 4,
+  label, value, onChange, required, rows = 4, maxLength,
 }: {
-  label: string; value: string; onChange: (v: string) => void; required?: boolean; rows?: number
+  label: string; value: string; onChange: (v: string) => void; required?: boolean; rows?: number; maxLength?: number
 }) {
   const [focused, setFocused] = useState(false)
   const active = focused || value.length > 0
+  const atLimit = maxLength ? value.length >= maxLength : false
+  const nearLimit = maxLength ? value.length >= maxLength * 0.9 : false
   return (
     <div className="relative">
       <label
@@ -98,9 +104,10 @@ function FloatTextarea({
       <textarea
         rows={rows}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        maxLength={maxLength}
         className="w-full px-4 pt-6 pb-3 rounded-xl text-sm outline-none transition-all duration-300 resize-none"
         style={{
           background: 'rgba(255,255,255,0.04)',
@@ -110,6 +117,14 @@ function FloatTextarea({
           fontFamily: 'IBM Plex Sans Arabic, sans-serif',
         }}
       />
+      {maxLength && (
+        <span className="absolute bottom-2 left-3 text-xs" style={{
+          color: atLimit ? '#EF4444' : nearLimit ? 'var(--accent-gold)' : 'var(--text-muted)',
+          fontFamily: 'IBM Plex Sans Arabic',
+        }}>
+          {value.length}/{maxLength}
+        </span>
+      )}
     </div>
   )
 }
@@ -240,6 +255,8 @@ export default function NewSessionPage() {
   const [step, setStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [trialLimitReached, setTrialLimitReached] = useState(false)
+  const [sessionCount, setSessionCount] = useState<number | null>(null)
   const [previousCompanies, setPreviousCompanies] = useState<Array<{
     name: string; sector: string; company_size: string; stage: string; annual_revenue: string; team_size: string
   }>>([])
@@ -249,6 +266,23 @@ export default function NewSessionPage() {
       .then((r) => r.ok ? r.json() : [])
       .then((data) => { if (Array.isArray(data) && data.length > 0) setPreviousCompanies(data) })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!hasSupabaseConfig()) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      // Fetch session count via the API to respect the same limit
+      try {
+        const r = await fetch('/api/session/count')
+        if (r.ok) {
+          const { count } = await r.json() as { count: number }
+          setSessionCount(count)
+          if (count >= FREE_SESSION_LIMIT) setTrialLimitReached(true)
+        }
+      } catch { /* ignore */ }
+    })
   }, [])
   const [form, setForm] = useState<FormData>({
     companyName: '',
@@ -342,6 +376,10 @@ export default function NewSessionPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
+        if (err.error === 'trial_limit_reached') {
+          setTrialLimitReached(true)
+          return
+        }
         throw new Error(err.error || 'Failed to create session')
       }
       const { sessionId } = await res.json()
@@ -357,6 +395,59 @@ export default function NewSessionPage() {
     enter: { x: -40, opacity: 0 },
     center: { x: 0, opacity: 1 },
     exit: { x: 40, opacity: 0 },
+  }
+
+  if (trialLimitReached) {
+    const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '966554422881'
+    const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'tamome2009@Hotmail.com'
+    return (
+      <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <AppSidebar />
+        <main className="md:mr-60 min-h-screen p-6 md:p-8 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full text-center"
+          >
+            <div
+              className="rounded-3xl p-8 md:p-10"
+              style={{
+                background: 'rgba(19,24,32,0.9)',
+                backdropFilter: 'blur(24px)',
+                border: '1px solid var(--border-gold)',
+                boxShadow: '0 0 60px rgba(212,168,83,0.08)',
+              }}
+            >
+              <div className="text-5xl mb-4">🔒</div>
+              <h2 className="text-xl font-black mb-2" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+                استنفدت جلساتك المجانية
+              </h2>
+              <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                الخطة المجانية تتيح {FREE_SESSION_LIMIT} جلسات. للحصول على المزيد تواصل معنا.
+              </p>
+              <div className="space-y-3">
+                <a
+                  href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('مرحباً، أود الاستفسار عن باقات المجلس الاستشاري')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm"
+                  style={{ background: '#25D366', color: '#fff', fontFamily: 'Tajawal' }}
+                >
+                  <span>💬</span> تواصل عبر واتساب
+                </a>
+                <a
+                  href={`mailto:${email}`}
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm"
+                  style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid var(--border-gold)', color: 'var(--accent-gold)', fontFamily: 'Tajawal' }}
+                >
+                  <span>✉️</span> راسلنا بالبريد
+                </a>
+              </div>
+            </div>
+          </motion.div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -377,9 +468,30 @@ export default function NewSessionPage() {
               جلسة استشارية جديدة
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-              أدخل تفاصيل قرارك وسيحلله المجلس من ٩ زوايا
+              أدخل تفاصيل قرارك وسيحلله المجلس من ٤ زوايا
             </p>
           </motion.div>
+
+          {/* Trial banner */}
+          {sessionCount !== null && (
+            <div
+              className="mb-5 rounded-xl px-4 py-3 flex items-center justify-between text-sm"
+              style={{
+                background: sessionCount >= FREE_SESSION_LIMIT - 1 ? 'rgba(239,68,68,0.08)' : 'rgba(212,168,83,0.06)',
+                border: `1px solid ${sessionCount >= FREE_SESSION_LIMIT - 1 ? 'rgba(239,68,68,0.2)' : 'rgba(212,168,83,0.2)'}`,
+                fontFamily: 'IBM Plex Sans Arabic',
+              }}
+            >
+              <span style={{ color: sessionCount >= FREE_SESSION_LIMIT - 1 ? '#EF4444' : 'var(--text-secondary)' }}>
+                {FREE_SESSION_LIMIT - sessionCount === 0
+                  ? 'استنفدت جلساتك المجانية'
+                  : `متبقي ${FREE_SESSION_LIMIT - sessionCount} جلسة مجانية`}
+              </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                {sessionCount}/{FREE_SESSION_LIMIT} جلسات
+              </span>
+            </div>
+          )}
 
           {/* Progress steps */}
           <div className="flex items-center mb-8">
@@ -473,7 +585,7 @@ export default function NewSessionPage() {
                       </div>
                     )}
 
-                    <FloatInput label="اسم الشركة" value={form.companyName} onChange={set('companyName')} required />
+                    <FloatInput label="اسم الشركة" value={form.companyName} onChange={set('companyName')} required maxLength={100} />
                     <FloatSelect
                       label="القطاع"
                       value={form.sector}
@@ -506,8 +618,8 @@ export default function NewSessionPage() {
                     <h2 className="text-lg font-bold" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
                       💡 تفاصيل القرار
                     </h2>
-                    <FloatInput label="عنوان القرار" value={form.decisionTitle} onChange={set('decisionTitle')} required />
-                    <FloatTextarea label="وصف القرار" value={form.decisionDescription} onChange={set('decisionDescription')} required rows={4} />
+                    <FloatInput label="عنوان القرار" value={form.decisionTitle} onChange={set('decisionTitle')} required maxLength={150} />
+                    <FloatTextarea label="وصف القرار" value={form.decisionDescription} onChange={set('decisionDescription')} required rows={4} maxLength={2000} />
                     <FloatSelect
                       label="فئة القرار"
                       value={form.decisionCategory}
@@ -515,7 +627,7 @@ export default function NewSessionPage() {
                       required
                       options={['استثمار', 'توسع', 'منتج', 'تسعير', 'شراكة', 'إعادة هيكلة', 'توظيف', 'تقنية', 'أخرى']}
                     />
-                    <FloatInput label="الهدف الرئيسي" value={form.mainGoal} onChange={set('mainGoal')} required />
+                    <FloatInput label="الهدف الرئيسي" value={form.mainGoal} onChange={set('mainGoal')} required maxLength={300} />
                     <div className="grid grid-cols-2 gap-4">
                       <FloatInput label="التكلفة المتوقعة (اختياري)" value={form.estimatedCost} onChange={set('estimatedCost')} />
                       <FloatSelect
@@ -525,8 +637,8 @@ export default function NewSessionPage() {
                         options={['فوري', 'خلال ربع سنة', 'خلال سنة', 'مرن']}
                       />
                     </div>
-                    <FloatTextarea label="البدائل المدروسة (اختياري)" value={form.alternatives} onChange={set('alternatives')} rows={3} />
-                    <FloatTextarea label="القيود المعروفة (اختياري)" value={form.constraints} onChange={set('constraints')} rows={3} />
+                    <FloatTextarea label="البدائل المدروسة (اختياري)" value={form.alternatives} onChange={set('alternatives')} rows={3} maxLength={500} />
+                    <FloatTextarea label="القيود المعروفة (اختياري)" value={form.constraints} onChange={set('constraints')} rows={3} maxLength={500} />
                   </>
                 )}
 
@@ -536,7 +648,7 @@ export default function NewSessionPage() {
                     <h2 className="text-lg font-bold" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
                       📎 السياق الإضافي
                     </h2>
-                    <FloatTextarea label="مخاوف محددة (اختياري)" value={form.specificConcerns} onChange={set('specificConcerns')} rows={3} />
+                    <FloatTextarea label="مخاوف محددة (اختياري)" value={form.specificConcerns} onChange={set('specificConcerns')} rows={3} maxLength={500} />
 
                     {/* File upload zone */}
                     <div>

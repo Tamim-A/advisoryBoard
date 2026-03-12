@@ -66,6 +66,17 @@ export async function getUserSessionsDB(userId: string): Promise<SessionRow[]> {
   return (data ?? []) as SessionRow[]
 }
 
+// عدد جلسات المستخدم (للتحقق من حد التجربة المجانية)
+export async function getUserSessionCount(userId: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from('sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+
+  if (error) return 0
+  return count ?? 0
+}
+
 // تحديث حالة الجلسة (admin — يتجاوز RLS)
 export async function updateSessionDB(
   sessionId: string,
