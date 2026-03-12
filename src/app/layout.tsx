@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import InactivityGuard from '@/components/InactivityGuard'
 
 export const metadata: Metadata = {
   title: 'Advisory Board — مجلسك الاستشاري الذكي',
@@ -22,6 +23,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-arabic antialiased">
+        <InactivityGuard />
         {children}
       </body>
     </html>

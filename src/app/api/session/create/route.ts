@@ -3,7 +3,7 @@ import { saveSession } from '@/lib/storage'
 import { hasSupabaseServerConfig } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createSessionDB, getUserSessionCount } from '@/lib/db/sessions'
-import { getSessionLimit } from '@/lib/vip'
+import { getUserPlan } from '@/lib/db/plans'
 
 function sanitize(value: unknown): string {
   if (typeof value !== 'string') return ''
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
-        const limit = getSessionLimit(user.email)
+        const { session_limit: limit } = await getUserPlan(user.id, user.email ?? '')
         const sessionCount = await getUserSessionCount(user.id)
         if (sessionCount >= limit) {
           return NextResponse.json(

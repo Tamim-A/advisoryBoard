@@ -3,23 +3,28 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { hasSupabaseConfig, createClient } from '@/lib/supabase/client'
+
+const ADMIN_EMAILS = ['tamome2009@hotmail.com', 'tamome00@gmail.com']
 
 const navItems = [
   { href: '/dashboard', label: 'الرئيسية', icon: '🏠' },
   { href: '/session/new', label: 'جلسة جديدة', icon: '✨' },
   { href: '/dashboard', label: 'الجلسات السابقة', icon: '📂' },
-  { href: '/dashboard', label: 'الإعدادات', icon: '⚙️' },
+  { href: '/settings', label: 'الإعدادات', icon: '⚙️' },
 ]
 
 export default function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [userDisplay, setUserDisplay] = useState<{ name: string; initial: string } | null>(null)
+  const [userDisplay, setUserDisplay] = useState<{ name: string; initial: string; email: string } | null>(null)
   const [isVipUser, setIsVipUser] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [sessionCount, setSessionCount] = useState<number | null>(null)
   const [sessionLimit, setSessionLimit] = useState(2)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     if (!hasSupabaseConfig()) return
@@ -30,7 +35,8 @@ export default function AppSidebar() {
       const fullName = (user.user_metadata?.full_name as string | undefined) ?? ''
       const name = fullName || email.split('@')[0] || 'مستخدم'
       const initial = name.charAt(0).toUpperCase()
-      setUserDisplay({ name, initial })
+      setUserDisplay({ name, initial, email })
+      setIsAdmin(ADMIN_EMAILS.includes(email.toLowerCase()))
       try {
         const r = await fetch('/api/session/count')
         if (r.ok) {
@@ -42,6 +48,13 @@ export default function AppSidebar() {
       } catch { /* ignore */ }
     })
   }, [])
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -90,18 +103,48 @@ export default function AppSidebar() {
             </Link>
           )
         })}
+
+        {/* Admin link — visible only to admins */}
+        {isAdmin && (
+          <Link
+            href="/admin"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+            style={{
+              background: pathname.startsWith('/admin') ? 'rgba(212, 168, 83, 0.08)' : 'transparent',
+              color: pathname.startsWith('/admin') ? 'var(--accent-gold)' : 'var(--text-secondary)',
+              fontFamily: 'IBM Plex Sans Arabic, sans-serif',
+              borderRight: pathname.startsWith('/admin') ? '2px solid var(--accent-gold)' : '2px solid transparent',
+            }}
+            onMouseEnter={(e) => {
+              if (!pathname.startsWith('/admin')) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                e.currentTarget.style.color = 'var(--text-primary)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!pathname.startsWith('/admin')) {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+              }
+            }}
+          >
+            <span className="text-base">🔧</span>
+            <span>لوحة التحكم</span>
+          </Link>
+        )}
       </nav>
 
-      {/* Bottom — user info */}
+      {/* Bottom — user info + logout */}
       <div className="px-4 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-3">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
             style={{ background: 'rgba(212, 168, 83, 0.15)', color: 'var(--accent-gold)' }}
           >
             {userDisplay?.initial ?? '؟'}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
               {userDisplay?.name ?? 'مستخدم جديد'}
             </p>
@@ -116,6 +159,28 @@ export default function AppSidebar() {
             )}
           </div>
         </div>
+
+        {/* Logout button */}
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200"
+          style={{
+            background: 'rgba(239,68,68,0.06)',
+            border: '1px solid rgba(239,68,68,0.15)',
+            color: loggingOut ? 'var(--text-muted)' : '#EF4444',
+            fontFamily: 'IBM Plex Sans Arabic',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.06)' }}
+        >
+          {loggingOut ? (
+            <span className="w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+          ) : (
+            <span>🚪</span>
+          )}
+          {loggingOut ? 'جاري الخروج...' : 'تسجيل خروج'}
+        </button>
       </div>
     </div>
   )
