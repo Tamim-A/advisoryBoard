@@ -128,6 +128,11 @@ export async function GET(
 
   const stream = new ReadableStream({
     async start(controller) {
+      // ── Keepalive: send SSE comment every 20s to prevent connection drops ──
+      const heartbeat = setInterval(() => {
+        try { controller.enqueue(encoder.encode(': heartbeat\n\n')) } catch { /* stream closed */ }
+      }, 20_000)
+
       try {
         const gen = runAdvisorySessionStream({
           companyProfile: sessionCompanyProfile as never,
@@ -185,6 +190,7 @@ export async function GET(
           updateSession(params.id, { status: 'error' })
         }
       } finally {
+        clearInterval(heartbeat)
         controller.close()
       }
     },

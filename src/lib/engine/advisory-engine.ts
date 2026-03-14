@@ -94,11 +94,11 @@ async function runSingleAdvisor(
   const config = ADVISOR_REGISTRY[advisorId]
   if (!config) throw new Error(`Unknown advisor: ${advisorId}`)
 
-  const userMessage = config.module.buildUserMessage(company, decision)
-
-  const ADVISOR_TIMEOUT_MS = 90_000 // 90 seconds per advisor
+  const ADVISOR_TIMEOUT_MS = 75_000 // 75 seconds per advisor
 
   try {
+    // buildUserMessage inside try so any error is safely caught
+    const userMessage = config.module.buildUserMessage(company, decision)
     // callAdvisor already handles 429 retry internally (client.ts)
     const result = await withTimeout(
       callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000),
@@ -109,42 +109,22 @@ async function runSingleAdvisor(
   } catch (error: unknown) {
     const e = error as { status?: number; error?: { type?: string }; message?: string }
     const isTimeout = e?.message?.startsWith('[Timeout]')
-    // If rate limit still hits after client retry, wait longer and try once more
-    if (!isTimeout && (e?.status === 429 || e?.error?.type === 'rate_limit_error')) {
-      if (process.env.NODE_ENV === 'development') console.log(`[Engine] Rate limit for ${advisorId} — waiting 20s for final retry...`)
-      await delay(20000)
-      try {
-        const result = await withTimeout(
-          callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000),
-          ADVISOR_TIMEOUT_MS,
-          advisorId
-        ) as unknown as AdvisorOutput
-        return { ...result, id: advisorId, name: config.name, icon: config.icon }
-      } catch {
-        if (process.env.NODE_ENV === 'development') console.error(`[Engine] Final retry failed for ${advisorId}`)
-        return createFallbackReport(advisorId, 'تجاوز حد الطلبات')
-      }
-    }
     const reason = isTimeout ? 'استغرق التحليل وقتاً أطول من المتوقع' : 'خطأ تقني'
     if (process.env.NODE_ENV === 'development') console.error(`[Engine] Error for ${advisorId}:`, error)
     return createFallbackReport(advisorId, reason)
   }
 }
 
-// ─── Retry wrapper: validates result, retries if invalid ─
+// ─── Single-attempt wrapper (callAdvisor handles rate-limit retry internally) ─
 async function runWithRetry(
   advisorId: string,
   company: CompanyProfile,
-  decision: Decision,
-  retries = 2
+  decision: Decision
 ): Promise<AdvisorOutput> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    const result = await runSingleAdvisor(advisorId, company, decision)
-    const isFallback = (result as AdvisorOutput & { _isFallback?: boolean })._isFallback
-    if (!isFallback && result.summary && result.scorecard) return result
-    console.log(`[Engine] Incomplete result for ${advisorId} on attempt ${attempt}/${retries}`)
-    if (attempt < retries) await delay(3000)
-  }
+  const result = await runSingleAdvisor(advisorId, company, decision)
+  const isFallback = (result as AdvisorOutput & { _isFallback?: boolean })._isFallback
+  if (!isFallback && result.summary && result.scorecard) return result
+  console.log(`[Engine] Incomplete result for ${advisorId} — using fallback`)
   return createFallbackReport(advisorId, 'يرجى الضغط على إعادة المحاولة لإكمال التحليل')
 }
 
