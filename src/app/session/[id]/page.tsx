@@ -233,7 +233,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
           setTimedOut(true)
           setGlobalLoading(false)
           esRef.current?.close()
-        }, 120_000)
+        }, 240_000)
 
         const es = new EventSource(`/api/session/${sessionId}/stream`)
         esRef.current = es

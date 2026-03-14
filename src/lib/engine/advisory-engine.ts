@@ -96,7 +96,7 @@ async function runSingleAdvisor(
 
   const userMessage = config.module.buildUserMessage(company, decision)
 
-  const ADVISOR_TIMEOUT_MS = 60_000 // 1 minute per advisor
+  const ADVISOR_TIMEOUT_MS = 90_000 // 90 seconds per advisor
 
   try {
     // callAdvisor already handles 429 retry internally (client.ts)
@@ -148,31 +148,20 @@ async function runWithRetry(
   return createFallbackReport(advisorId, 'يرجى الضغط على إعادة المحاولة لإكمال التحليل')
 }
 
-// ─── Run advisors in pairs to halve total wall-clock time ─
-async function runAdvisorsPaired(
+// ─── Run advisors sequentially — avoids rate-limit collisions ─
+async function runAdvisorsSequential(
   advisors: string[],
   company: CompanyProfile,
   decision: Decision
 ): Promise<AdvisorOutput[]> {
   const results: AdvisorOutput[] = []
-
-  // Chunk into pairs of 2
-  for (let i = 0; i < advisors.length; i += 2) {
-    const pair = advisors.slice(i, i + 2)
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
-
-    const pairResults = await Promise.all(
-      pair.map((id) => runWithRetry(id, company, decision))
-    )
-    results.push(...pairResults)
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Pair complete: ${pair.join(', ')}`)
-
-    // 3s between pairs; no trailing delay after last pair
-    if (i + 2 < advisors.length) {
-      await delay(3000)
-    }
+  for (let i = 0; i < advisors.length; i++) {
+    console.log(`[Engine] Starting advisor ${i + 1}/${advisors.length}: ${advisors[i]}`)
+    const result = await runWithRetry(advisors[i], company, decision)
+    results.push(result)
+    console.log(`[Engine] Completed: ${advisors[i]}`)
+    if (i < advisors.length - 1) await delay(2000)
   }
-
   return results
 }
 
@@ -216,7 +205,7 @@ function buildFallbackSynthesis(advisorResults: AdvisorOutput[]): SynthesisOutpu
 
   return {
     overallVerdict: verdict,
-    overallConfidence: Math.min(Math.round(avgConf) / 100, 1),
+    overallConfidence: Math.round(avgConf),
     executiveSummary: source[0]?.summary || 'يرجى مراجعة تقارير المستشارين للحصول على التفاصيل.',
     topFindings: topFindings.length > 0 ? topFindings : ['راجع تقارير المستشارين للتفاصيل'],
     conditions: conditions.length > 0 ? conditions : ['مراجعة التحليلات بعناية قبل اتخاذ القرار'],
@@ -262,12 +251,11 @@ export async function runAdvisorySession(sessionData: SessionInput): Promise<Ses
   // Only run advisors that are currently active (filter out coming-soon)
   const requested = additionalAdvisors && additionalAdvisors.length > 0
     ? additionalAdvisors
-    : ['strategic', 'financial', 'market', 'technical']
+    : ['strategic', 'financial', 'market', 'technical', 'operational']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
   console.log('[Engine] Active advisors:', allAdvisors)
-  // Run advisors in pairs to stay within time limits
-  const advisorResults = await runAdvisorsPaired(allAdvisors, companyProfile, decision)
+  const advisorResults = await runAdvisorsSequential(allAdvisors, companyProfile, decision)
 
   // Debate (Full + Deep only)
   let debate: DebateOutput | null = null
@@ -292,37 +280,23 @@ export async function* runAdvisorySessionStream(
   // Only run advisors that are currently active (filter out coming-soon)
   const requested = additionalAdvisors && additionalAdvisors.length > 0
     ? additionalAdvisors
-    : ['strategic', 'financial', 'market', 'technical']
+    : ['strategic', 'financial', 'market', 'technical', 'operational']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
   console.log('[Engine] Active advisors:', allAdvisors)
-  // Run in pairs — yield advisor_complete for each as soon as the pair finishes
+  // Run sequentially — one advisor at a time to avoid rate-limit collisions
   const advisorResults: AdvisorOutput[] = []
 
-  for (let i = 0; i < allAdvisors.length; i += 2) {
-    const pair = allAdvisors.slice(i, i + 2)
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
-
-    const pairResults = await Promise.all(
-      pair.map((id) => runWithRetry(id, companyProfile, decision))
-    )
-
-    for (let j = 0; j < pair.length; j++) {
-      const advisorId = pair[j]
-      const result = pairResults[j]
-      advisorResults.push(result)
-      if (onAdvisorComplete) onAdvisorComplete(advisorId, result)
-      yield { type: 'advisor_complete', data: { advisorId, result } }
-    }
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Pair complete: ${pair.join(', ')}`)
-
-    // 3s between pairs, 2s before synthesis after last pair
-    if (i + 2 < allAdvisors.length) {
-      await delay(3000)
-    }
+  for (let i = 0; i < allAdvisors.length; i++) {
+    const advisorId = allAdvisors[i]
+    console.log(`[Engine] Starting advisor ${i + 1}/${allAdvisors.length}: ${advisorId}`)
+    const result = await runWithRetry(advisorId, companyProfile, decision)
+    advisorResults.push(result)
+    if (onAdvisorComplete) onAdvisorComplete(advisorId, result)
+    yield { type: 'advisor_complete', data: { advisorId, result } }
+    console.log(`[Engine] Completed: ${advisorId}`)
+    if (i < allAdvisors.length - 1) await delay(2000)
   }
-
-  await delay(2000)
 
   // Debate
   let debate: DebateOutput | null = null
