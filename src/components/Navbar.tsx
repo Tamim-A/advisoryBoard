@@ -2,14 +2,25 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { hasSupabaseConfig } from '@/lib/supabase/client'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    if (!hasSupabaseConfig()) return
+    createClient().auth.getUser().then(({ data }) => {
+      setLoggedIn(!!data.user)
+    })
   }, [])
 
   return (
@@ -56,18 +67,42 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* CTA Button */}
-        <motion.a
-          href="#how-it-works"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.97 }}
-          className="btn-outline-gold px-5 py-2.5 rounded-lg text-sm relative overflow-hidden inline-block"
-          style={{ fontFamily: 'Tajawal, sans-serif' }}
-        >
-          <span className="relative z-10">ابدأ الآن</span>
-          {/* Animated border shimmer */}
-          <span className="absolute inset-0 rounded-lg border border-[#D4A853]/40 animate-pulse" />
-        </motion.a>
+        {/* CTA Buttons */}
+        {loggedIn ? (
+          <Link href="/dashboard">
+            <motion.span
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              className="btn-gold px-5 py-2.5 rounded-lg text-sm inline-block cursor-pointer"
+              style={{ fontFamily: 'Tajawal, sans-serif' }}
+            >
+              لوحة التحكم
+            </motion.span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Link href="/auth/login">
+              <motion.span
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className="btn-outline-gold px-4 py-2 rounded-lg text-sm relative overflow-hidden inline-block cursor-pointer"
+                style={{ fontFamily: 'Tajawal, sans-serif' }}
+              >
+                تسجيل دخول
+              </motion.span>
+            </Link>
+            <Link href="/auth/login">
+              <motion.span
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className="btn-gold px-4 py-2 rounded-lg text-sm inline-block cursor-pointer"
+                style={{ fontFamily: 'Tajawal, sans-serif' }}
+              >
+                إنشاء حساب
+              </motion.span>
+            </Link>
+          </div>
+        )}
       </div>
     </motion.nav>
   )

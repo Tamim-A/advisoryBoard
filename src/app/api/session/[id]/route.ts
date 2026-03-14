@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/storage'
 import { hasSupabaseServerConfig } from '@/lib/supabase/admin'
-import { getSessionDB } from '@/lib/db/sessions'
+import { getSessionWithResultsDB } from '@/lib/db/sessions'
 
 export async function GET(
   _req: NextRequest,
@@ -9,8 +9,15 @@ export async function GET(
 ) {
   // ─── Try Supabase first, then JSON fallback ────────────
   if (hasSupabaseServerConfig()) {
-    const session = await getSessionDB(params.id)
-    if (session) return NextResponse.json(session)
+    const full = await getSessionWithResultsDB(params.id)
+    if (full) {
+      return NextResponse.json({
+        ...full.session,
+        advisorResults: full.advisorResults,
+        synthesis: full.synthesis,
+        debate: full.debate,
+      })
+    }
     // Not in Supabase → try JSON storage (anonymous sessions)
   }
 

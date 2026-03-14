@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 
 const TYPEWRITER_TEXT = 'قبل أن تُنفّذ قرارًا يكلّفك ملايين...'
 
@@ -43,6 +44,14 @@ const stats = [
 
 export default function HeroSection() {
   const { displayed, done } = useTypewriter(TYPEWRITER_TEXT, 55)
+  const [ctaHref, setCtaHref] = useState('/auth/login')
+
+  useEffect(() => {
+    if (!hasSupabaseConfig()) return
+    createClient().auth.getUser().then(({ data }) => {
+      if (data.user) setCtaHref('/session/new')
+    })
+  }, [])
 
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden gradient-mesh dot-grid">
@@ -142,7 +151,7 @@ export default function HeroSection() {
           {/* CTA Buttons */}
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 mt-2">
             <motion.a
-              href="/auth/login"
+              href={ctaHref}
               whileHover={{ scale: 1.04, boxShadow: '0 0 50px rgba(212, 168, 83, 0.35)' }}
               whileTap={{ scale: 0.97 }}
               className="btn-gold px-8 py-4 rounded-xl text-lg font-bold relative overflow-hidden inline-block"

@@ -103,6 +103,42 @@ function LoadingPlaceholder({ message }: { message: string }) {
   )
 }
 
+function AdvisorSummaryFallback({ advisors }: { advisors: AdvisorOutput[] }) {
+  const valid = advisors.filter(
+    (a) => a.summary && !(a as AdvisorOutput & { _isFallback?: boolean })._isFallback
+  )
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl p-5" style={{ background: 'rgba(212,168,83,0.06)', border: '1px solid var(--border-gold)' }}>
+        <p className="font-bold mb-1" style={{ fontFamily: 'Tajawal', color: 'var(--accent-gold)' }}>
+          تعذّر إنتاج الملخص التنفيذي الموحّد
+        </p>
+        <p className="text-sm" style={{ fontFamily: 'IBM Plex Sans Arabic', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+          تم تحليل القرار من {valid.length} مستشارين. يمكنك الاطلاع على تقاريرهم التفصيلية من القائمة الجانبية.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-3 px-4 py-2 rounded-xl text-sm font-bold"
+          style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid var(--border-gold)', color: 'var(--accent-gold)', fontFamily: 'Tajawal' }}
+        >
+          إعادة المحاولة
+        </button>
+      </div>
+      {valid.map((a) => (
+        <div key={a.id} className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">{a.icon}</span>
+            <span className="font-bold text-sm" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>{a.name}</span>
+          </div>
+          <p className="text-sm" style={{ fontFamily: 'IBM Plex Sans Arabic', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+            {a.summary}
+          </p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function RetryMessage({ detail }: { detail?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
@@ -154,17 +190,9 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const totalAdvisors = Math.max(Object.keys(statuses).length, 4)
   const progress = totalAdvisors > 0 ? Math.round((doneCount / totalAdvisors) * 100) : 0
 
-  // ─── Real SSE connection ──────────────────────────────
+  // ─── Load session: restore if completed, stream if new ──
   useEffect(() => {
-
-    setStatuses({ strategic: 'loading', financial: 'loading', market: 'loading', operational: 'loading' })
-
-    // 120-second safety timeout — prevents infinite loading if stream stalls
-    timeoutRef.current = setTimeout(() => {
-      setTimedOut(true)
-      setGlobalLoading(false)
-      esRef.current?.close()
-    }, 120_000)
+    let closed = false
 
     const finish = () => {
       setGlobalLoading(false)
@@ -172,41 +200,76 @@ export default function SessionPage({ params }: { params: { id: string } }) {
       esRef.current?.close()
     }
 
-    const es = new EventSource(`/api/session/${sessionId}/stream`)
-    esRef.current = es
-
-    es.addEventListener('advisor_complete', (e: MessageEvent) => {
-      const { advisorId, result } = JSON.parse(e.data) as { advisorId: string; result: AdvisorOutput }
-      const meta = ADVISOR_META[advisorId]
-      const enriched = { ...result, id: advisorId, name: meta?.name || result.name, icon: meta?.icon || result.icon }
-      setAdvisorResults((p) => [...p.filter((a) => a.id !== advisorId), enriched])
-      setStatuses((p) => ({ ...p, [advisorId]: 'done' }))
-    })
-
-    es.addEventListener('advisor_error', (e: MessageEvent) => {
-      const { advisorId } = JSON.parse(e.data) as { advisorId: string }
-      setStatuses((p) => ({ ...p, [advisorId]: 'error' }))
-    })
-
-    es.addEventListener('debate_complete', (e: MessageEvent) => {
-      setDebate(JSON.parse(e.data) as { points: unknown[] })
-    })
-
-    es.addEventListener('synthesis_complete', (e: MessageEvent) => {
-      setSynthesis(JSON.parse(e.data) as SynthesisOutput)
-    })
-
-    es.addEventListener('done', () => finish())
-    es.onerror = () => finish()
-
     fetch(`/api/session/${sessionId}`)
-      .then((r) => r.json())
-      .then((d) => setSessionMeta(d))
-      .catch(() => {})
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((data: Record<string, unknown>) => {
+        if (closed) return
+        setSessionMeta(data)
+
+        // ── Restore completed session directly — no SSE needed ──
+        const storedAdvisors = data.advisorResults as AdvisorOutput[] | undefined
+        if (
+          data.status === 'completed' &&
+          Array.isArray(storedAdvisors) && storedAdvisors.length > 0 &&
+          data.synthesis
+        ) {
+          const enriched = storedAdvisors.map((a: AdvisorOutput) => {
+            const meta = ADVISOR_META[a.id || '']
+            return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
+          })
+          setAdvisorResults(enriched)
+          setStatuses(Object.fromEntries(enriched.map((a) => [a.id, 'done' as AdvisorStatus])))
+          if (data.debate) setDebate(data.debate as { points: unknown[] })
+          setSynthesis(data.synthesis as SynthesisOutput)
+          setGlobalLoading(false)
+          return
+        }
+
+        // ── New / in-progress session → start SSE stream ──
+        if (closed) return
+        setStatuses({ strategic: 'loading', financial: 'loading', market: 'loading', technical: 'loading', operational: 'loading' })
+
+        timeoutRef.current = setTimeout(() => {
+          setTimedOut(true)
+          setGlobalLoading(false)
+          esRef.current?.close()
+        }, 120_000)
+
+        const es = new EventSource(`/api/session/${sessionId}/stream`)
+        esRef.current = es
+
+        es.addEventListener('advisor_complete', (e: MessageEvent) => {
+          const { advisorId, result } = JSON.parse(e.data) as { advisorId: string; result: AdvisorOutput }
+          const meta = ADVISOR_META[advisorId]
+          const enriched = { ...result, id: advisorId, name: meta?.name || result.name, icon: meta?.icon || result.icon }
+          setAdvisorResults((p) => [...p.filter((a) => a.id !== advisorId), enriched])
+          setStatuses((p) => ({ ...p, [advisorId]: 'done' }))
+        })
+
+        es.addEventListener('advisor_error', (e: MessageEvent) => {
+          const { advisorId } = JSON.parse(e.data) as { advisorId: string }
+          setStatuses((p) => ({ ...p, [advisorId]: 'error' }))
+        })
+
+        es.addEventListener('debate_complete', (e: MessageEvent) => {
+          setDebate(JSON.parse(e.data) as { points: unknown[] })
+        })
+
+        es.addEventListener('synthesis_complete', (e: MessageEvent) => {
+          setSynthesis(JSON.parse(e.data) as SynthesisOutput)
+        })
+
+        es.addEventListener('done', () => finish())
+        es.onerror = () => finish()
+      })
+      .catch(() => {
+        if (!closed) setGlobalLoading(false)
+      })
 
     return () => {
+      closed = true
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      es.close()
+      esRef.current?.close()
     }
   }, [sessionId])
 
@@ -399,7 +462,9 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                   sessionData
                     ? <SummaryTab session={sessionData} />
                     : timedOut
-                      ? <RetryMessage detail="تعذّر إنتاج الملخص التنفيذي — يرجى مراجعة تقارير المستشارين مباشرة" />
+                      ? advisorResults.length > 0
+                        ? <AdvisorSummaryFallback advisors={advisorResults} />
+                        : <RetryMessage detail="تعذّر إنتاج الملخص التنفيذي — يرجى مراجعة تقارير المستشارين مباشرة" />
                       : <Skeleton />
                 )}
                 {activeTab === 'advisor' && selectedAdvisor && activeAdvisorResult && (

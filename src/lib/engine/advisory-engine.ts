@@ -62,7 +62,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 // ─── Fallback report when an advisor fails ─────────────
-function createFallbackReport(advisorId: string, reason = 'خطأ تقني'): AdvisorOutput {
+function createFallbackReport(advisorId: string, reason = 'يرجى الضغط على إعادة المحاولة لإكمال التحليل'): AdvisorOutput {
   const config = ADVISOR_REGISTRY[advisorId]
   return {
     id: advisorId,
@@ -131,6 +131,23 @@ async function runSingleAdvisor(
   }
 }
 
+// ─── Retry wrapper: validates result, retries if invalid ─
+async function runWithRetry(
+  advisorId: string,
+  company: CompanyProfile,
+  decision: Decision,
+  retries = 2
+): Promise<AdvisorOutput> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const result = await runSingleAdvisor(advisorId, company, decision)
+    const isFallback = (result as AdvisorOutput & { _isFallback?: boolean })._isFallback
+    if (!isFallback && result.summary && result.scorecard) return result
+    console.log(`[Engine] Incomplete result for ${advisorId} on attempt ${attempt}/${retries}`)
+    if (attempt < retries) await delay(3000)
+  }
+  return createFallbackReport(advisorId, 'يرجى الضغط على إعادة المحاولة لإكمال التحليل')
+}
+
 // ─── Run advisors in pairs to halve total wall-clock time ─
 async function runAdvisorsPaired(
   advisors: string[],
@@ -145,7 +162,7 @@ async function runAdvisorsPaired(
     if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
 
     const pairResults = await Promise.all(
-      pair.map((id) => runSingleAdvisor(id, company, decision))
+      pair.map((id) => runWithRetry(id, company, decision))
     )
     results.push(...pairResults)
     if (process.env.NODE_ENV === 'development') console.log(`[Engine] Pair complete: ${pair.join(', ')}`)
@@ -248,6 +265,7 @@ export async function runAdvisorySession(sessionData: SessionInput): Promise<Ses
     : ['strategic', 'financial', 'market', 'technical']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
+  console.log('[Engine] Active advisors:', allAdvisors)
   // Run advisors in pairs to stay within time limits
   const advisorResults = await runAdvisorsPaired(allAdvisors, companyProfile, decision)
 
@@ -277,6 +295,7 @@ export async function* runAdvisorySessionStream(
     : ['strategic', 'financial', 'market', 'technical']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
+  console.log('[Engine] Active advisors:', allAdvisors)
   // Run in pairs — yield advisor_complete for each as soon as the pair finishes
   const advisorResults: AdvisorOutput[] = []
 
@@ -285,7 +304,7 @@ export async function* runAdvisorySessionStream(
     if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
 
     const pairResults = await Promise.all(
-      pair.map((id) => runSingleAdvisor(id, companyProfile, decision))
+      pair.map((id) => runWithRetry(id, companyProfile, decision))
     )
 
     for (let j = 0; j < pair.length; j++) {

@@ -15,6 +15,35 @@ export interface SessionRow {
   updated_at: string
 }
 
+// جلب جلسة كاملة مع تقارير المستشارين والتوليف والنقاش
+export interface FullSessionData {
+  session: SessionRow
+  advisorResults: unknown[]
+  synthesis: unknown | null
+  debate: unknown | null
+}
+
+export async function getSessionWithResultsDB(sessionId: string): Promise<FullSessionData | null> {
+  const session = await getSessionDB(sessionId)
+  if (!session) return null
+  if (session.status !== 'completed') {
+    return { session, advisorResults: [], synthesis: null, debate: null }
+  }
+
+  const [reportsRes, synthRes, debateRes] = await Promise.all([
+    supabaseAdmin.from('advisor_reports').select('advisor_type, report').eq('session_id', sessionId),
+    supabaseAdmin.from('syntheses').select('synthesis_data').eq('session_id', sessionId).limit(1),
+    supabaseAdmin.from('debates').select('debate_data').eq('session_id', sessionId).limit(1),
+  ])
+
+  return {
+    session,
+    advisorResults: (reportsRes.data ?? []).map((r: { advisor_type: string; report: unknown }) => r.report),
+    synthesis: (synthRes.data ?? [])[0]?.synthesis_data ?? null,
+    debate: (debateRes.data ?? [])[0]?.debate_data ?? null,
+  }
+}
+
 // إنشاء جلسة جديدة
 export async function createSessionDB(data: {
   userId: string | null
