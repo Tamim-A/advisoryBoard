@@ -96,12 +96,12 @@ async function runSingleAdvisor(
 
   const userMessage = config.module.buildUserMessage(company, decision)
 
-  const ADVISOR_TIMEOUT_MS = 120_000 // 2 minutes per advisor
+  const ADVISOR_TIMEOUT_MS = 60_000 // 1 minute per advisor
 
   try {
     // callAdvisor already handles 429 retry internally (client.ts)
     const result = await withTimeout(
-      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 6000),
+      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000),
       ADVISOR_TIMEOUT_MS,
       advisorId
     ) as unknown as AdvisorOutput
@@ -115,7 +115,7 @@ async function runSingleAdvisor(
       await delay(20000)
       try {
         const result = await withTimeout(
-          callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 6000),
+          callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 4000),
           ADVISOR_TIMEOUT_MS,
           advisorId
         ) as unknown as AdvisorOutput
@@ -131,24 +131,28 @@ async function runSingleAdvisor(
   }
 }
 
-// ─── Run advisors sequentially with delay between each ──
-async function runAdvisorsSequential(
+// ─── Run advisors in pairs to halve total wall-clock time ─
+async function runAdvisorsPaired(
   advisors: string[],
   company: CompanyProfile,
   decision: Decision
 ): Promise<AdvisorOutput[]> {
   const results: AdvisorOutput[] = []
 
-  for (let i = 0; i < advisors.length; i++) {
-    const advisorId = advisors[i]
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting advisor ${i + 1}/${advisors.length}: ${advisorId}`)
-    const result = await runSingleAdvisor(advisorId, company, decision)
-    results.push(result)
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Completed: ${advisorId}`)
+  // Chunk into pairs of 2
+  for (let i = 0; i < advisors.length; i += 2) {
+    const pair = advisors.slice(i, i + 2)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
 
-    // Wait 5 seconds between advisors to stay within rate limits
-    if (i < advisors.length - 1) {
-      await delay(5000)
+    const pairResults = await Promise.all(
+      pair.map((id) => runSingleAdvisor(id, company, decision))
+    )
+    results.push(...pairResults)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Pair complete: ${pair.join(', ')}`)
+
+    // 3s between pairs; no trailing delay after last pair
+    if (i + 2 < advisors.length) {
+      await delay(3000)
     }
   }
 
@@ -244,8 +248,8 @@ export async function runAdvisorySession(sessionData: SessionInput): Promise<Ses
     : ['strategic', 'financial', 'market', 'technical']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
-  // Run advisors sequentially to avoid rate limit
-  const advisorResults = await runAdvisorsSequential(allAdvisors, companyProfile, decision)
+  // Run advisors in pairs to stay within time limits
+  const advisorResults = await runAdvisorsPaired(allAdvisors, companyProfile, decision)
 
   // Debate (Full + Deep only)
   let debate: DebateOutput | null = null
@@ -273,28 +277,33 @@ export async function* runAdvisorySessionStream(
     : ['strategic', 'financial', 'market', 'technical']
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
-  // Run sequentially — yield each advisor_complete event as it finishes
+  // Run in pairs — yield advisor_complete for each as soon as the pair finishes
   const advisorResults: AdvisorOutput[] = []
 
-  for (let i = 0; i < allAdvisors.length; i++) {
-    const advisorId = allAdvisors[i]
-    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting advisor ${i + 1}/${allAdvisors.length}: ${advisorId}`)
+  for (let i = 0; i < allAdvisors.length; i += 2) {
+    const pair = allAdvisors.slice(i, i + 2)
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Starting pair: ${pair.join(', ')}`)
 
-    try {
-      const result = await runSingleAdvisor(advisorId, companyProfile, decision)
+    const pairResults = await Promise.all(
+      pair.map((id) => runSingleAdvisor(id, companyProfile, decision))
+    )
+
+    for (let j = 0; j < pair.length; j++) {
+      const advisorId = pair[j]
+      const result = pairResults[j]
       advisorResults.push(result)
       if (onAdvisorComplete) onAdvisorComplete(advisorId, result)
       yield { type: 'advisor_complete', data: { advisorId, result } }
-      if (process.env.NODE_ENV === 'development') console.log(`[Engine] Completed: ${advisorId}`)
-    } catch {
-      yield { type: 'advisor_error', data: { advisorId } }
     }
+    if (process.env.NODE_ENV === 'development') console.log(`[Engine] Pair complete: ${pair.join(', ')}`)
 
-    // 5-second delay between advisors
-    if (i < allAdvisors.length - 1) {
-      await delay(5000)
+    // 3s between pairs, 2s before synthesis after last pair
+    if (i + 2 < allAdvisors.length) {
+      await delay(3000)
     }
   }
+
+  await delay(2000)
 
   // Debate
   let debate: DebateOutput | null = null
