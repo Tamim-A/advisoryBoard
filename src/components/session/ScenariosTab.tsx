@@ -73,10 +73,11 @@ export default function ScenariosTab({ session }: { session: SessionData }) {
               {session.advisors.slice(0, 5).map((advisor) => {
                 const scenario =
                   col.key === 'best'
-                    ? advisor.scenarios.best
+                    ? advisor.scenarios?.best
                     : col.key === 'base'
-                    ? advisor.scenarios.base
-                    : advisor.scenarios.worst
+                    ? advisor.scenarios?.base
+                    : advisor.scenarios?.worst
+                if (!scenario) return null
                 return (
                   <div key={advisor.id}>
                     <div className="flex items-center gap-2 mb-1">

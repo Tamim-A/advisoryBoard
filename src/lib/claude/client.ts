@@ -75,19 +75,13 @@ function parseAdvisorResponse(rawText: string): Record<string, unknown> {
     return JSON.parse(repairJSON(cleaned)) as Record<string, unknown>
   } catch { /* continue */ }
 
-  // 6. Minimal valid fallback — carry raw text as summary so data isn't lost
-  console.warn('[Claude] JSON parse failed — using minimal fallback. Raw length:', rawText.length)
-  console.log(`[Claude] JSON parse failed. Full response: ${rawText.substring(0, 2000)}`)
+  // 6. Signal parse failure — engine will use createFallbackReport with proper structure
+  console.warn('[Claude] JSON parse failed — signaling fallback. Raw length:', rawText.length)
   return {
+    _isFallback: true,
     verdict: 'APPROVE_WITH_CONDITIONS',
-    confidence: 50,
-    summary: rawText.slice(0, 800) || 'لم يتمكن النظام من تحليل الاستجابة.',
-    key_findings: [],
-    risks: [],
-    scorecard: { confidence: 0.5 },
-    scenarios: { best_case: '—', base_case: '—', worst_case: '—' },
-    strongest_objection: '—',
-    recommendation: 'أعد المحاولة أو راجع النتائج الجزئية.',
+    confidence: 0,
+    summary: '',
   }
 }
 
@@ -138,7 +132,7 @@ export async function* callAdvisorStream(
   userMessage: string,
   maxTokens = 6000
 ): AsyncGenerator<string> {
-  const stream = await getClient().messages.stream({
+  const stream = getClient().messages.stream({
     model: ADVISOR_MODEL,
     max_tokens: maxTokens,
     system: systemPrompt,
