@@ -156,7 +156,11 @@ async function runDebate(advisorResults: AdvisorOutput[]): Promise<DebateOutput>
   if (usable.length < 2) return { points: [] }
   try {
     const userMessage = buildDebateMessage(usable)
-    const result = await callAdvisor(DEBATE_PROMPT, userMessage, 6000) as unknown as DebateOutput
+    const result = await withTimeout(
+      callAdvisor(DEBATE_PROMPT, userMessage, 4000) as Promise<unknown>,
+      40_000,
+      'debate'
+    ) as unknown as DebateOutput
     return result
   } catch {
     return { points: [] }
@@ -211,7 +215,11 @@ async function runSynthesis(
   if (process.env.NODE_ENV === 'development') console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
   const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
   try {
-    const result = await callAdvisor(SYNTHESIS_PROMPT, userMessage, 8000, true) as unknown as SynthesisOutput
+    const result = await withTimeout(
+      callAdvisor(SYNTHESIS_PROMPT, userMessage, 6000, true) as Promise<unknown>,
+      60_000,
+      'synthesis'
+    ) as unknown as SynthesisOutput
     // Validate minimum required fields — if missing, fall through to fallback
     if (result && result.overallVerdict && result.executiveSummary) {
       return result
