@@ -77,6 +77,7 @@ function parseAdvisorResponse(rawText: string): Record<string, unknown> {
 
   // 6. Minimal valid fallback — carry raw text as summary so data isn't lost
   console.warn('[Claude] JSON parse failed — using minimal fallback. Raw length:', rawText.length)
+  console.log(`[Claude] JSON parse failed. Full response: ${rawText.substring(0, 2000)}`)
   return {
     verdict: 'APPROVE_WITH_CONDITIONS',
     confidence: 50,
@@ -100,6 +101,7 @@ export async function callAdvisor(
   const model = useSynthesisModel ? SYNTHESIS_MODEL : ADVISOR_MODEL
 
   const attempt = async () => {
+    console.log(`[Claude] Calling advisor with system prompt length: ${systemPrompt.length}`)
     const response = await getClient().messages.create({
       model,
       max_tokens: maxTokens,
@@ -108,6 +110,9 @@ export async function callAdvisor(
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    console.log(`[Claude] Raw response length: ${text.length}`)
+    console.log(`[Claude] First 500 chars: ${text.substring(0, 500)}`)
+    console.log(`[Claude] Last 200 chars: ${text.substring(text.length - 200)}`)
     return parseAdvisorResponse(text)
   }
 
