@@ -40,6 +40,21 @@ export async function GET(
     return new Response('Session not found', { status: 404 })
   }
 
+  // ── Don't re-run completed sessions — emit already_complete ──
+  const existingStatus = (session as unknown as { status?: string }).status
+  if (existingStatus === 'completed') {
+    const enc = new TextEncoder()
+    const doneStream = new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode('event: already_complete\ndata: {}\n\n'))
+        c.close()
+      },
+    })
+    return new Response(doneStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
+  }
+
   const encoder = new TextEncoder()
   const sendEvent = (type: string, data: unknown) =>
     encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)

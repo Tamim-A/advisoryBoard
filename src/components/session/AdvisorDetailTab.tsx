@@ -51,7 +51,7 @@ const probColor: Record<string, string> = {
 }
 
 export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis }) {
-  const v = verdictConfig[advisor.verdict]
+  const v = verdictConfig[advisor.verdict] ?? verdictConfig['APPROVE_WITH_CONDITIONS']
 
   return (
     <motion.div

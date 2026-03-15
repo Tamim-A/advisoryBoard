@@ -259,6 +259,25 @@ export default function SessionPage({ params }: { params: { id: string } }) {
           setSynthesis(JSON.parse(e.data) as SynthesisOutput)
         })
 
+        es.addEventListener('already_complete', async () => {
+          const r = await fetch(`/api/session/${sessionId}`)
+          if (r.ok) {
+            const fresh = await r.json() as Record<string, unknown>
+            const stored = fresh.advisorResults as AdvisorOutput[] | undefined
+            if (Array.isArray(stored) && stored.length > 0) {
+              const enriched = stored.map((a: AdvisorOutput) => {
+                const meta = ADVISOR_META[a.id || '']
+                return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
+              })
+              setAdvisorResults(enriched)
+              setStatuses(Object.fromEntries(enriched.map((a) => [a.id, 'done' as AdvisorStatus])))
+              if (fresh.debate) setDebate(fresh.debate as { points: unknown[] })
+              if (fresh.synthesis) setSynthesis(fresh.synthesis as SynthesisOutput)
+            }
+          }
+          finish()
+        })
+
         es.addEventListener('done', () => finish())
         es.onerror = () => finish()
       })
