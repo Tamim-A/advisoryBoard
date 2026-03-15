@@ -93,7 +93,7 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
           📊 بطاقة التقييم
         </h3>
         <div className="flex flex-col gap-4">
-          {advisor.scorecard.map((item, i) => (
+          {(advisor.scorecard ?? []).map((item, i) => (
             <ScoreBar key={item.dimension} score={item.score} label={item.dimension} delay={i * 0.1} />
           ))}
         </div>
@@ -115,7 +115,7 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
           🔑 النقاط الرئيسية
         </h3>
         <ul className="space-y-2">
-          {advisor.keyPoints.map((point, i) => (
+          {(advisor.keyPoints ?? []).map((point, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--accent-gold)' }} />
               <span className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
@@ -143,21 +143,21 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
               </tr>
             </thead>
             <tbody>
-              {advisor.risks.map((risk, i) => (
+              {(advisor.risks ?? []).map((risk, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td className="py-2.5 pr-2" style={{ color: 'var(--text-secondary)' }}>{risk.risk}</td>
                   <td className="py-2.5 pr-2">
                     <span className="px-1.5 py-0.5 rounded text-xs" style={{
-                      background: `${impactColor[risk.impact]}18`,
-                      color: impactColor[risk.impact],
+                      background: `${impactColor[risk.impact] ?? '#94A3B8'}18`,
+                      color: impactColor[risk.impact] ?? '#94A3B8',
                     }}>
                       {risk.impact}
                     </span>
                   </td>
                   <td className="py-2.5 pr-2">
                     <span className="px-1.5 py-0.5 rounded text-xs" style={{
-                      background: `${probColor[risk.probability]}18`,
-                      color: probColor[risk.probability],
+                      background: `${probColor[risk.probability] ?? '#94A3B8'}18`,
+                      color: probColor[risk.probability] ?? '#94A3B8',
                     }}>
                       {risk.probability}
                     </span>
@@ -178,11 +178,11 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
           🔮 السيناريوهات
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
+          {advisor.scenarios ? [
             { key: 'best', label: 'الأفضل ↑', color: '#22C55E', data: advisor.scenarios.best },
             { key: 'base', label: 'الأساسي →', color: '#3B82F6', data: advisor.scenarios.base },
             { key: 'worst', label: 'الأسوأ ↓', color: '#EF4444', data: advisor.scenarios.worst },
-          ].map((s) => (
+          ].map((s) => s.data ? (
             <div
               key={s.key}
               className="rounded-xl p-4"
@@ -198,7 +198,11 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
                 {s.data.description}
               </p>
             </div>
-          ))}
+          ) : null) : (
+            <p className="col-span-3 text-xs text-center py-4" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+              لا تتوفر بيانات السيناريوهات لهذا المستشار
+            </p>
+          )}
         </div>
       </div>
 

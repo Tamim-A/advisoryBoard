@@ -44,16 +44,20 @@ const ADVISOR_META: Record<string, { name: string; icon: string }> = {
 
 // ─── Build SessionData from real API results ──────────────
 function buildSessionData(
-  base: { id: string; companyProfile: Record<string, string>; decision: Record<string, string>; sessionType: string },
+  base: Record<string, unknown>,
   advisorResults: AdvisorOutput[],
   debate: { points: unknown[] } | null,
   synthesis: SynthesisOutput
 ): SessionData {
+  // Support both camelCase (JSON storage) and snake_case (Supabase)
+  const companyProfile = ((base.companyProfile || base.company_profile) ?? {}) as Record<string, string>
+  const sessionType = ((base.sessionType || base.session_type) ?? 'Full') as string
+  const decision = (base.decision ?? {}) as Record<string, string>
   return {
-    id: base.id,
+    id: base.id as string,
     date: new Date().toISOString().split('T')[0],
-    decisionTitle: base.decision?.title || '',
-    sessionType: (base.sessionType as 'Quick' | 'Full' | 'Deep') || 'Full',
+    decisionTitle: decision?.title || '',
+    sessionType: (sessionType as 'Quick' | 'Full' | 'Deep'),
     overallVerdict: synthesis.overallVerdict as SessionData['overallVerdict'],
     overallConfidence: synthesis.overallConfidence,
     executiveSummary: synthesis.executiveSummary,
@@ -65,19 +69,19 @@ function buildSessionData(
     advisors: advisorResults as unknown as SessionData['advisors'],
     discussion: (debate?.points || []) as SessionData['discussion'],
     company: {
-      name: base.companyProfile?.company_name || '',
-      sector: base.companyProfile?.sector || '',
-      size: base.companyProfile?.company_size || '',
-      stage: base.companyProfile?.stage || '',
-      revenue: base.companyProfile?.annual_revenue || '',
-      teamSize: base.companyProfile?.team_size || '',
+      name: companyProfile?.company_name || '',
+      sector: companyProfile?.sector || '',
+      size: companyProfile?.company_size || '',
+      stage: companyProfile?.stage || '',
+      revenue: companyProfile?.annual_revenue || '',
+      teamSize: companyProfile?.team_size || '',
     },
     decision: {
-      description: base.decision?.description || '',
-      category: base.decision?.category || '',
-      mainGoal: base.decision?.primary_goal || '',
-      estimatedCost: base.decision?.estimated_cost || '',
-      timeline: base.decision?.expected_timeline || '',
+      description: decision?.description || '',
+      category: decision?.category || '',
+      mainGoal: decision?.primary_goal || '',
+      estimatedCost: decision?.estimated_cost || '',
+      timeline: decision?.expected_timeline || '',
     },
   }
 }
@@ -296,7 +300,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (!synthesis || advisorResults.length === 0) return
     setSessionData(buildSessionData(
-      sessionMeta as { id: string; companyProfile: Record<string, string>; decision: Record<string, string>; sessionType: string },
+      sessionMeta,
       advisorResults,
       debate,
       synthesis
