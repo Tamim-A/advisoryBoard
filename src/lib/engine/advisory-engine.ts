@@ -94,14 +94,14 @@ async function runSingleAdvisor(
   const config = ADVISOR_REGISTRY[advisorId]
   if (!config) throw new Error(`Unknown advisor: ${advisorId}`)
 
-  const ADVISOR_TIMEOUT_MS = 40_000 // 40 seconds — 1500 tokens ≈ 20-25s generation
+  const ADVISOR_TIMEOUT_MS = 40_000 // 40 seconds — 2000 tokens ≈ 25-30s generation
 
   try {
     // buildUserMessage inside try so any error is safely caught
     const userMessage = config.module.buildUserMessage(company, decision)
     // callAdvisor already handles 429 retry internally (client.ts)
     const result = await withTimeout(
-      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 1500),
+      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 2000),
       ADVISOR_TIMEOUT_MS,
       advisorId
     ) as unknown as AdvisorOutput
@@ -216,8 +216,8 @@ async function runSynthesis(
   const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
   try {
     const result = await withTimeout(
-      callAdvisor(SYNTHESIS_PROMPT, userMessage, 3000, true) as Promise<unknown>,
-      45_000,
+      callAdvisor(SYNTHESIS_PROMPT, userMessage, 4500, true) as Promise<unknown>,
+      55_000,
       'synthesis'
     ) as unknown as SynthesisOutput
     // Validate minimum required fields — if missing, fall through to fallback
