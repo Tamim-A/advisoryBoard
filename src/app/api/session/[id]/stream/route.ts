@@ -152,10 +152,17 @@ export async function GET(
   }
 
   // ─── Real API mode ─────────────────────────────────────
-  if (useSupabase) {
-    await updateSessionDB(params.id, { status: 'running' })
-  } else {
-    updateSession(params.id, { status: 'running' })
+  console.log(`[Stream] Setting session ${params.id} status to 'running'`)
+  try {
+    if (useSupabase) {
+      await updateSessionDB(params.id, { status: 'running' })
+    } else {
+      updateSession(params.id, { status: 'running' })
+    }
+    console.log(`[Stream] ✓ Session ${params.id} status set to 'running'`)
+  } catch (err) {
+    console.error(`[Stream] ❌ Failed to set status to 'running' for ${params.id}:`, err)
+    // Continue anyway — the analysis can still run
   }
 
   const s = session as unknown as Record<string, unknown>

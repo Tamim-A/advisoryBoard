@@ -136,15 +136,20 @@ export async function updateSessionDB(
     status: string
     final_verdict: string
     confidence_level: number
-    advisor_results: unknown[]
-    debate: unknown
-    synthesis: unknown
   }>
 ): Promise<void> {
-  await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('sessions')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', sessionId)
+    .select('id, status')
+  if (error) {
+    console.error(`[DB] updateSessionDB failed for ${sessionId}:`, error.message)
+    throw new Error(`[DB] updateSessionDB failed: ${error.message}`)
+  }
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    console.warn(`[DB] updateSessionDB: UPDATE matched 0 rows for session ${sessionId}`)
+  }
 }
 
 // حفظ تقرير مستشار
