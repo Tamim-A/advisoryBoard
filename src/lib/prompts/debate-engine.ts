@@ -48,12 +48,14 @@ Schema (JSON فقط):
 }`
 
 export function buildDebateMessage(advisorResults: AdvisorOutput[]): string {
+  const trunc = (s: string | undefined, n: number) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : ''
+
   const summaries = advisorResults.map((a) => `
 ## ${a.icon} ${a.name}
 - الحكم: ${a.verdict} (ثقة: ${a.confidence}٪)
-- الملخص: ${a.summary}
-- أقوى اعتراض: ${a.strongestObjection}
-- التوصية: ${a.recommendation}
+- الملخص: ${trunc(a.summary, 300)}
+- أقوى اعتراض: ${trunc(a.strongestObjection, 200)}
+- التوصية: ${trunc(a.recommendation, 200)}
 `).join('\n---\n')
 
   return `فيما يلي ملخصات تقارير المستشارين:

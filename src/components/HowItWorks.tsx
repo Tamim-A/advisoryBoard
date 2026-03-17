@@ -71,9 +71,24 @@ function StepItem({ step, index }: { step: typeof steps[0]; index: number }) {
       {/* Content */}
       <div className="pb-10 flex-1">
         <div
-          className="glass-card rounded-2xl p-6 animated-gold-border transition-all duration-300 hover:shadow-glow-gold hover:-translate-y-1"
+          className="glass-card rounded-2xl p-6 animated-gold-border transition-all duration-300 hover:shadow-glow-gold hover:-translate-y-1 relative overflow-hidden"
           style={{ background: 'rgba(19, 24, 32, 0.6)' }}
         >
+          {/* Watermark step number */}
+          <span
+            className="absolute select-none pointer-events-none font-black"
+            style={{
+              fontFamily: 'Tajawal, sans-serif',
+              fontSize: '120px',
+              lineHeight: 1,
+              color: 'var(--accent-gold)',
+              opacity: 0.04,
+              bottom: '-16px',
+              left: '12px',
+            }}
+          >
+            {step.number}
+          </span>
           <div className="flex items-start gap-4">
             <span className="text-3xl">{step.icon}</span>
             <div>

@@ -19,14 +19,18 @@
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.400.0",
+    "mammoth": "^1.12.0",
     "next": "14.2.5",
+    "pdf-parse": "^1.1.4",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^2.4.0",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/uuid": "^10.0.0",

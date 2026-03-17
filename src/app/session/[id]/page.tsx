@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import AppSidebar from '@/components/AppSidebar'
 import SummaryTab from '@/components/session/SummaryTab'
 import AdvisorDetailTab from '@/components/session/AdvisorDetailTab'
-import ScenariosTab from '@/components/session/ScenariosTab'
 import VerdictTab from '@/components/session/VerdictTab'
 import { type SessionData, type AdvisorAnalysis } from '@/data/mockData'
 import { type AdvisorOutput, type SynthesisOutput } from '@/lib/prompts/types'
@@ -13,7 +13,7 @@ import { exportSessionPDF } from '@/lib/utils/pdf-export'
 
 // ─── Types ──────────────────────────────────────────────
 type AdvisorStatus = 'loading' | 'done' | 'error'
-type MainTab = 'summary' | 'advisor' | 'discussion' | 'scenarios' | 'verdict'
+type MainTab = 'summary' | 'advisor' | 'discussion' | 'verdict'
 
 const SESSION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   Quick: { label: 'سريعة', color: '#3B82F6' },
@@ -24,9 +24,8 @@ const SESSION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
 const MAIN_TABS: Array<{ id: MainTab; label: string; icon: string; premium?: boolean }> = [
   { id: 'summary',    label: 'الملخص التنفيذي', icon: '📋' },
   { id: 'advisor',    label: 'المستشارون',       icon: '👥' },
-  { id: 'discussion', label: 'نقاش المستشارين',  icon: '⚔️', premium: true },
-  { id: 'scenarios',  label: 'السيناريوهات',     icon: '📊' },
   { id: 'verdict',    label: 'الحكم النهائي',    icon: '✅' },
+  { id: 'discussion', label: 'نقاش المستشارين',  icon: '⚔️', premium: true },
 ]
 
 const ADVISOR_META: Record<string, { name: string; icon: string }> = {
@@ -58,7 +57,9 @@ function buildSessionData(
     date: new Date().toISOString().split('T')[0],
     decisionTitle: decision?.title || '',
     sessionType: (sessionType as 'Quick' | 'Full' | 'Deep'),
-    overallVerdict: synthesis.overallVerdict as SessionData['overallVerdict'],
+    overallVerdict: (['APPROVE', 'APPROVE_WITH_CONDITIONS', 'REJECT', 'DELAY'].includes(synthesis.overallVerdict)
+      ? synthesis.overallVerdict
+      : 'APPROVE_WITH_CONDITIONS') as SessionData['overallVerdict'],
     overallConfidence: synthesis.overallConfidence,
     executiveSummary: synthesis.executiveSummary,
     topFindings: synthesis.topFindings,
@@ -88,10 +89,10 @@ function buildSessionData(
 
 function Skeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
-      <div className="h-32 rounded-2xl" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      <div className="h-4 rounded-lg w-3/4" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      <div className="h-4 rounded-lg w-1/2" style={{ background: 'rgba(255,255,255,0.06)' }} />
+    <div className="space-y-4">
+      <div className="h-32 rounded-2xl shimmer-load" />
+      <div className="h-4 rounded-lg w-3/4 shimmer-load" />
+      <div className="h-4 rounded-lg w-1/2 shimmer-load" />
     </div>
   )
 }
@@ -172,6 +173,7 @@ function RetryMessage({ detail }: { detail?: string }) {
 // ─── Main Page ───────────────────────────────────────────
 export default function SessionPage({ params }: { params: { id: string } }) {
   const sessionId = params.id
+  const router = useRouter()
 
   const [statuses, setStatuses] = useState<Record<string, AdvisorStatus>>({})
   const [advisorResults, setAdvisorResults] = useState<AdvisorOutput[]>([])
@@ -185,6 +187,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<MainTab>('summary')
   const esRef = useRef<EventSource | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const displayAdvisors: AdvisorAnalysis[] = advisorResults.length > 0
     ? advisorResults as unknown as AdvisorAnalysis[]
@@ -194,14 +197,88 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const totalAdvisors = Math.max(Object.keys(statuses).length, 4)
   const progress = totalAdvisors > 0 ? Math.round((doneCount / totalAdvisors) * 100) : 0
 
-  // ─── Load session: restore if completed, stream if new ──
+  // ─── Load session: restore if completed, poll if running, stream if new ──
   useEffect(() => {
     let closed = false
 
     const finish = () => {
       setGlobalLoading(false)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       esRef.current?.close()
+    }
+
+    // Helper: restore session data from API response
+    const restoreFromData = (data: Record<string, unknown>) => {
+      setSessionMeta(data)
+      const storedAdvisors = data.advisorResults as AdvisorOutput[] | undefined
+      if (Array.isArray(storedAdvisors) && storedAdvisors.length > 0) {
+        const enriched = storedAdvisors.map((a: AdvisorOutput) => {
+          const meta = ADVISOR_META[a.id || '']
+          return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
+        })
+        setAdvisorResults(enriched)
+        setStatuses(Object.fromEntries(enriched.map((a) => [a.id, 'done' as AdvisorStatus])))
+        if (data.debate) setDebate(data.debate as { points: unknown[] })
+        if (data.synthesis) setSynthesis(data.synthesis as SynthesisOutput)
+      }
+    }
+
+    // Helper: start polling for session completion (used when session is already running)
+    const startPolling = (initialData: Record<string, unknown>) => {
+      // Show any partial results already saved
+      const partialAdvisors = initialData.advisorResults as AdvisorOutput[] | undefined
+      const initialStatuses: Record<string, AdvisorStatus> = {
+        strategic: 'loading', financial: 'loading', market: 'loading', technical: 'loading', operational: 'loading',
+      }
+      if (Array.isArray(partialAdvisors)) {
+        for (const a of partialAdvisors) {
+          const meta = ADVISOR_META[a.id || '']
+          const enriched = { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
+          setAdvisorResults((p) => [...p.filter((x) => x.id !== a.id), enriched])
+          initialStatuses[a.id || ''] = 'done'
+        }
+      }
+      setStatuses(initialStatuses)
+
+      // Poll every 5 seconds for completion
+      pollRef.current = setInterval(async () => {
+        if (closed) return
+        try {
+          const r = await fetch(`/api/session/${sessionId}`)
+          if (!r.ok) return
+          const fresh = await r.json() as Record<string, unknown>
+          setSessionMeta(fresh)
+
+          // Update partial results as they arrive
+          const freshAdvisors = fresh.advisorResults as AdvisorOutput[] | undefined
+          if (Array.isArray(freshAdvisors) && freshAdvisors.length > 0) {
+            const enriched = freshAdvisors.map((a: AdvisorOutput) => {
+              const meta = ADVISOR_META[a.id || '']
+              return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
+            })
+            setAdvisorResults(enriched)
+            setStatuses((prev) => {
+              const next = { ...prev }
+              for (const a of enriched) next[a.id || ''] = 'done'
+              return next
+            })
+            if (fresh.debate) setDebate(fresh.debate as { points: unknown[] })
+            if (fresh.synthesis) setSynthesis(fresh.synthesis as SynthesisOutput)
+          }
+
+          // Check if completed or failed
+          if (fresh.status === 'completed' || fresh.status === 'failed' || fresh.status === 'error') {
+            finish()
+          }
+        } catch { /* ignore poll errors */ }
+      }, 5_000)
+
+      // Safety timeout: stop polling after 6 minutes
+      timeoutRef.current = setTimeout(() => {
+        setTimedOut(true)
+        finish()
+      }, 360_000)
     }
 
     fetch(`/api/session/${sessionId}`)
@@ -217,19 +294,33 @@ export default function SessionPage({ params }: { params: { id: string } }) {
           Array.isArray(storedAdvisors) && storedAdvisors.length > 0 &&
           data.synthesis
         ) {
-          const enriched = storedAdvisors.map((a: AdvisorOutput) => {
-            const meta = ADVISOR_META[a.id || '']
-            return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
-          })
-          setAdvisorResults(enriched)
-          setStatuses(Object.fromEntries(enriched.map((a) => [a.id, 'done' as AdvisorStatus])))
-          if (data.debate) setDebate(data.debate as { points: unknown[] })
-          setSynthesis(data.synthesis as SynthesisOutput)
+          restoreFromData(data)
           setGlobalLoading(false)
           return
         }
 
-        // ── New / in-progress session → start SSE stream ──
+        // ── Session already running (first execution still in progress) — poll instead of restarting ──
+        if (data.status === 'running') {
+          startPolling(data)
+          return
+        }
+
+        // ── Failed session — show what we have ──
+        if (data.status === 'failed' || data.status === 'error') {
+          restoreFromData(data)
+          setGlobalLoading(false)
+          setTimedOut(true)
+          return
+        }
+
+        // ── Redirect to questions if not yet answered ──
+        const status = data.status as string | undefined
+        if (status === 'created') {
+          router.push(`/session/${sessionId}/questions`)
+          return
+        }
+
+        // ── Fresh session (status = pending/answered) → start SSE stream for first execution ──
         if (closed) return
         setStatuses({ strategic: 'loading', financial: 'loading', market: 'loading', technical: 'loading', operational: 'loading' })
 
@@ -267,18 +358,29 @@ export default function SessionPage({ params }: { params: { id: string } }) {
           const r = await fetch(`/api/session/${sessionId}`)
           if (r.ok) {
             const fresh = await r.json() as Record<string, unknown>
-            const stored = fresh.advisorResults as AdvisorOutput[] | undefined
-            if (Array.isArray(stored) && stored.length > 0) {
-              const enriched = stored.map((a: AdvisorOutput) => {
-                const meta = ADVISOR_META[a.id || '']
-                return { ...a, name: a.name || meta?.name || a.id || '', icon: a.icon || meta?.icon || '🎯' }
-              })
-              setAdvisorResults(enriched)
-              setStatuses(Object.fromEntries(enriched.map((a) => [a.id, 'done' as AdvisorStatus])))
-              if (fresh.debate) setDebate(fresh.debate as { points: unknown[] })
-              if (fresh.synthesis) setSynthesis(fresh.synthesis as SynthesisOutput)
-            }
+            restoreFromData(fresh)
           }
+          finish()
+        })
+
+        // ── Session is already running (stream told us) — switch to polling ──
+        es.addEventListener('still_running', async () => {
+          esRef.current?.close()
+          const r = await fetch(`/api/session/${sessionId}`)
+          if (r.ok) {
+            const fresh = await r.json() as Record<string, unknown>
+            startPolling(fresh)
+          }
+        })
+
+        // ── Session failed previously ──
+        es.addEventListener('session_failed', async () => {
+          const r = await fetch(`/api/session/${sessionId}`)
+          if (r.ok) {
+            const fresh = await r.json() as Record<string, unknown>
+            restoreFromData(fresh)
+          }
+          setTimedOut(true)
           finish()
         })
 
@@ -292,6 +394,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     return () => {
       closed = true
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       esRef.current?.close()
     }
   }, [sessionId])
@@ -396,6 +499,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                       borderRight: isActive ? '2px solid var(--accent-gold)' : '2px solid transparent',
                       opacity: status === 'loading' ? 0.7 : 1,
                       cursor: status === 'done' ? 'pointer' : 'default',
+                      transition: 'all 0.15s ease',
                     }}>
                     <span className="text-base flex-shrink-0">{advisor.icon}</span>
                     <span className="text-xs flex-1 truncate" style={{ fontFamily: 'IBM Plex Sans Arabic', color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)' }}>
@@ -425,6 +529,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                       background: isActive ? 'rgba(212,168,83,0.1)' : 'transparent',
                       borderRight: isActive ? '2px solid var(--accent-gold)' : '2px solid transparent',
                       opacity: isLocked ? 0.4 : 1,
+                      transition: 'all 0.15s ease',
                     }}>
                     <span className="text-base">{tab.icon}</span>
                     <span className="text-xs flex-1" style={{ fontFamily: 'IBM Plex Sans Arabic', color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)' }}>
@@ -575,16 +680,9 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                     </span>
                   </motion.div>
                 )}
-                {activeTab === 'scenarios' && !selectedAdvisor && (
+{activeTab === 'verdict' && !selectedAdvisor && (
                   sessionData
-                    ? <ScenariosTab session={sessionData} />
-                    : timedOut
-                      ? <RetryMessage detail="تعذّر إنتاج السيناريوهات — يرجى مراجعة تقارير المستشارين مباشرة" />
-                      : <LoadingPlaceholder message="جاري تحليل البيانات... قد يستغرق دقيقتين" />
-                )}
-                {activeTab === 'verdict' && !selectedAdvisor && (
-                  sessionData
-                    ? <VerdictTab session={sessionData} />
+                    ? <VerdictTab session={sessionData} onExportPDF={() => exportSessionPDF(sessionData)} />
                     : timedOut
                       ? <RetryMessage detail="تعذّر إنتاج الحكم النهائي — يرجى مراجعة تقارير المستشارين مباشرة" />
                       : <LoadingPlaceholder message="جاري تحليل البيانات... قد يستغرق دقيقتين" />

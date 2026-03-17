@@ -68,10 +68,15 @@ export interface SynthesisOutput {
   verdictReason: string
   whatCouldChange: string
   plan: {
-    days30: string[]
-    days60: string[]
-    days90: string[]
+    days30: string[] | { goal: string; tasks: string[] }
+    days60: string[] | { goal: string; tasks: string[] }
+    days90: string[] | { goal: string; tasks: string[] }
   }
+}
+
+export interface ClarifyingAnswer {
+  question: string
+  answer: string
 }
 
 export interface SessionInput {
@@ -80,6 +85,8 @@ export interface SessionInput {
   additionalAdvisors: string[]
   sessionType: 'Quick' | 'Full' | 'Deep'
   specificConcerns?: string
+  clarifyingAnswers?: ClarifyingAnswer[]
+  uploadedContext?: string
 }
 
 export interface SessionResult {

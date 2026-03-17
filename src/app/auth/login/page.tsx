@@ -96,6 +96,7 @@ function TextInput({
           border: `1px solid ${focused ? 'var(--accent-gold)' : 'var(--border)'}`,
           color: 'var(--text-primary)',
           fontFamily: 'IBM Plex Sans Arabic',
+          transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
         }}
       />
     </div>
@@ -333,7 +334,7 @@ export default function LoginPage() {
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-md mx-4 z-10"
+        className="relative w-full max-w-md mx-4 z-10 animate-float"
       >
         <div
           className="rounded-3xl p-8 md:p-10"
@@ -385,7 +386,7 @@ function GoldButton({ loading, children }: { loading: boolean; children: React.R
       disabled={loading}
       whileHover={!loading ? { scale: 1.02 } : {}}
       whileTap={!loading ? { scale: 0.98 } : {}}
-      className="btn-gold w-full py-3.5 rounded-xl text-base font-bold flex items-center justify-center gap-2"
+      className="btn-gold btn-shine w-full py-3.5 rounded-xl text-base font-bold flex items-center justify-center gap-2"
       style={{ fontFamily: 'Tajawal', opacity: loading ? 0.7 : 1 }}
     >
       {children}

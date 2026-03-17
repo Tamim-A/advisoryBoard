@@ -11,6 +11,8 @@ import {
   saveAdvisorReportDB,
   saveDebateDB,
   saveSynthesisDB,
+  getQuestionsDB,
+  getSessionFilesDB,
 } from '@/lib/db/sessions'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +53,36 @@ export async function GET(
       },
     })
     return new Response(doneStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
+  }
+
+  // ── Don't duplicate running sessions — emit still_running so client polls ──
+  if (existingStatus === 'running') {
+    console.log(`[Stream] Session ${params.id} is already running — sending still_running event`)
+    const enc = new TextEncoder()
+    const runningStream = new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode('event: still_running\ndata: {}\n\n'))
+        c.close()
+      },
+    })
+    return new Response(runningStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
+  }
+
+  // ── Don't restart failed sessions automatically ──
+  if (existingStatus === 'failed' || existingStatus === 'error') {
+    console.log(`[Stream] Session ${params.id} has status '${existingStatus}' — sending session_failed`)
+    const enc = new TextEncoder()
+    const failStream = new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode(`event: session_failed\ndata: ${JSON.stringify({ status: existingStatus })}\n\n`))
+        c.close()
+      },
+    })
+    return new Response(failStream, {
       headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
     })
   }
@@ -141,11 +173,34 @@ export async function GET(
     ? ((s.additional_context as { additionalAdvisors?: string[] } | null)?.additionalAdvisors ?? [])
     : (s.additionalAdvisors as string[] | undefined) ?? []
 
+  // Fetch clarifying answers and uploaded file context if using Supabase
+  let clarifyingAnswers: { question: string; answer: string }[] | undefined
+  let uploadedContext: string | undefined
+  if (useSupabase) {
+    const [questions, files] = await Promise.all([
+      getQuestionsDB(params.id).catch(() => null),
+      getSessionFilesDB(params.id).catch(() => []),
+    ])
+    if (questions && questions.length > 0) clarifyingAnswers = questions
+    if (files && files.length > 0) {
+      uploadedContext = files
+        .map((f) => f.extracted_text)
+        .filter(Boolean)
+        .join('\n---\n') || undefined
+    }
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
+      let controllerClosed = false
+      const safeEnqueue = (chunk: Uint8Array) => {
+        if (controllerClosed) return
+        try { controller.enqueue(chunk) } catch { controllerClosed = true }
+      }
+
       // ── Keepalive: send SSE comment every 20s to prevent connection drops ──
       const heartbeat = setInterval(() => {
-        try { controller.enqueue(encoder.encode(': heartbeat\n\n')) } catch { /* stream closed */ }
+        safeEnqueue(encoder.encode(': heartbeat\n\n'))
       }, 20_000)
 
       try {
@@ -155,6 +210,8 @@ export async function GET(
           additionalAdvisors,
           sessionType: sessionType as 'Quick' | 'Full' | 'Deep',
           specificConcerns: undefined,
+          clarifyingAnswers,
+          uploadedContext,
         })
 
         const collectedAdvisors: unknown[] = []
@@ -162,32 +219,52 @@ export async function GET(
         let collectedSynthesis: unknown = null
 
         for await (const event of gen) {
-          controller.enqueue(sendEvent(event.type, event.data))
+          safeEnqueue(sendEvent(event.type, event.data))
 
           if (event.type === 'advisor_complete') {
             const d = event.data as { advisorId: string; result: unknown }
             collectedAdvisors.push(d.result)
             if (useSupabase) {
-              await saveAdvisorReportDB(params.id, d.advisorId, d.result).catch(() => {})
+              console.log(`[Stream] Saving advisor report: ${d.advisorId} | session: ${params.id}`)
+              const trySave = () => saveAdvisorReportDB(params.id, d.advisorId, d.result)
+              try {
+                await trySave()
+                console.log(`[Stream] Saved advisor report ✓ ${d.advisorId}`)
+              } catch (e1) {
+                console.warn(`[Stream] Save failed for ${d.advisorId} — retrying...`, e1)
+                try {
+                  await new Promise((r) => setTimeout(r, 2000))
+                  await trySave()
+                  console.log(`[Stream] Saved advisor report ✓ ${d.advisorId} (retry)`)
+                } catch (e2) {
+                  console.error(`[Stream] ❌ Save FAILED permanently for ${d.advisorId} | session: ${params.id}`, e2)
+                }
+              }
             }
           } else if (event.type === 'debate_complete') {
             collectedDebate = event.data
             if (useSupabase) {
-              await saveDebateDB(params.id, event.data).catch(() => {})
+              await saveDebateDB(params.id, event.data)
+                .catch((e) => console.error('[Stream] saveDebateDB error:', e))
             }
           } else if (event.type === 'synthesis_complete') {
             collectedSynthesis = event.data
             if (useSupabase) {
-              await saveSynthesisDB(params.id, event.data).catch(() => {})
+              console.log(`[Stream] Advisors persisted before synthesis: ${collectedAdvisors.length}`)
+              // Try up to 2 times — synthesis is critical for session restoration
+              const saveSynthesis = () => saveSynthesisDB(params.id, event.data)
+              await saveSynthesis().catch(() => saveSynthesis())
+                .catch((e) => console.error('[Stream] saveSynthesisDB failed twice:', e))
               const syn = event.data as { overallVerdict?: string; overallConfidence?: number }
               await updateSessionDB(params.id, {
                 status: 'completed',
                 final_verdict: syn.overallVerdict,
                 confidence_level: syn.overallConfidence ? syn.overallConfidence / 100 : undefined,
-              }).catch(() => {})
+              }).catch((e) => console.error('[Stream] updateSessionDB error:', e))
             }
           } else if (event.type === 'done' && !useSupabase) {
             const d = event.data as { advisorResults: unknown[]; debate: unknown; synthesis: unknown }
+            console.log(`[Stream] Saving session (JSON) — advisors: ${(d.advisorResults || []).length}`)
             updateSession(params.id, {
               status: 'completed',
               advisorResults: d.advisorResults,
@@ -198,7 +275,7 @@ export async function GET(
         }
       } catch (err) {
         console.error('stream error:', err)
-        controller.enqueue(sendEvent('error', { message: 'حدث خطأ في التحليل' }))
+        safeEnqueue(sendEvent('error', { message: 'حدث خطأ في التحليل' }))
         if (useSupabase) {
           await updateSessionDB(params.id, { status: 'failed' }).catch(() => {})
         } else {
@@ -206,7 +283,8 @@ export async function GET(
         }
       } finally {
         clearInterval(heartbeat)
-        controller.close()
+        controllerClosed = true
+        try { controller.close() } catch { /* already closed */ }
       }
     },
   })

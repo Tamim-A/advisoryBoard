@@ -45,7 +45,7 @@ export default function SummaryTab({ session }: { session: SessionData }) {
   const v = verdictConfig[session.overallVerdict]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       {/* Verdict card */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
@@ -69,7 +69,7 @@ export default function SummaryTab({ session }: { session: SessionData }) {
             {v.label}
           </h2>
           <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-            بناءً على تحليل ٤ مستشارين متخصصين
+            بناءً على تحليل ٥ مستشارين متخصصين
           </p>
         </div>
         <div className="flex flex-col items-center gap-1">

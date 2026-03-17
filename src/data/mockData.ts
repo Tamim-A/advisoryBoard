@@ -72,9 +72,9 @@ export interface SessionData {
   advisors: AdvisorAnalysis[]
   discussion: DiscussionPoint[]
   plan: {
-    days30: string[]
-    days60: string[]
-    days90: string[]
+    days30: string[] | { goal: string; tasks: string[] }
+    days60: string[] | { goal: string; tasks: string[] }
+    days90: string[] | { goal: string; tasks: string[] }
   }
   verdictReason: string
   whatCouldChange: string
@@ -247,7 +247,7 @@ export const mockSessionData: SessionData = {
       recommendation: 'الموافقة. السوق مناسب والتوقيت جيد. الشرط الوحيد: حملة تسويق رقمي تسبق الافتتاح بـ٦٠ يوم على الأقل.',
     },
     {
-      id: 'operations',
+      id: 'operational',
       name: 'المستشار التشغيلي',
       icon: '⚙️',
       confidence: 58,
@@ -310,7 +310,7 @@ export const mockSessionData: SessionData = {
       recommendation: 'الموافقة. تسجيل العلامة التجارية في جدة فوراً. مراجعة قانونية لعقد الإيجار قبل التوقيع.',
     },
     {
-      id: 'tech',
+      id: 'technical',
       name: 'المستشار التقني',
       icon: '🔧',
       confidence: 75,

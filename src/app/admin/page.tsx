@@ -12,6 +12,13 @@ interface Stats {
   sessionsToday: number
 }
 
+interface FeatureFlag {
+  key: string
+  enabled: boolean
+  label_ar: string
+  updated_at: string
+}
+
 interface RecentSession {
   id: string
   title: string
@@ -44,6 +51,8 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
 export default function AdminPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([])
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -51,12 +60,30 @@ export default function AdminPage() {
     Promise.all([
       fetch('/api/admin/stats').then((r) => r.ok ? r.json() : null),
       fetch('/api/admin/sessions').then((r) => r.ok ? r.json() : []),
-    ]).then(([s, sessions]) => {
+      fetch('/api/admin/feature-flags').then((r) => r.ok ? r.json() : []),
+    ]).then(([s, sessions, flags]) => {
       if (s) setStats(s as Stats)
       else setError('تعذّر تحميل الإحصائيات')
       if (Array.isArray(sessions)) setRecentSessions(sessions as RecentSession[])
+      if (Array.isArray(flags)) setFeatureFlags(flags as FeatureFlag[])
     }).catch(() => setError('خطأ في الاتصال')).finally(() => setLoading(false))
   }, [])
+
+  const toggleFlag = async (key: string, currentEnabled: boolean) => {
+    setTogglingKey(key)
+    try {
+      const res = await fetch('/api/admin/feature-flags', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, enabled: !currentEnabled }),
+      })
+      if (res.ok) {
+        setFeatureFlags((prev) => prev.map((f) => f.key === key ? { ...f, enabled: !currentEnabled } : f))
+      }
+    } finally {
+      setTogglingKey(null)
+    }
+  }
 
   const statCards = stats ? [
     { icon: '👥', label: 'إجمالي المستخدمين', value: stats.totalUsers, color: 'var(--accent-gold)' },
@@ -127,6 +154,52 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Feature Flags */}
+              {featureFlags.length > 0 && (
+                <div className="rounded-2xl overflow-hidden mb-8" style={{ border: '1px solid var(--border)' }}>
+                  <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                    <h2 className="text-sm font-bold" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+                      التحكم في الميزات
+                    </h2>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {featureFlags.map((flag) => (
+                      <div
+                        key={flag.key}
+                        className="px-5 py-3 flex items-center justify-between gap-4"
+                      >
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
+                            {flag.label_ar}
+                          </p>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                            {flag.key}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => toggleFlag(flag.key, flag.enabled)}
+                          disabled={togglingKey === flag.key}
+                          className="relative w-12 h-6 rounded-full transition-all duration-300 shrink-0"
+                          style={{
+                            background: flag.enabled ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
+                            border: `1px solid ${flag.enabled ? '#22C55E' : 'var(--border)'}`,
+                            opacity: togglingKey === flag.key ? 0.5 : 1,
+                          }}
+                        >
+                          <span
+                            className="absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300"
+                            style={{
+                              background: flag.enabled ? '#22C55E' : 'var(--text-muted)',
+                              right: flag.enabled ? '2px' : 'calc(100% - 22px)',
+                            }}
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Recent sessions */}
               <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>

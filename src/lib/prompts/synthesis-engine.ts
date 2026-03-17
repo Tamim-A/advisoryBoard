@@ -56,11 +56,13 @@ Schema (JSON فقط):
   "verdictReason": "<لماذا هذا الحكم تحديداً — فقرة واضحة>",
   "whatCouldChange": "<ما الذي قد يجعلنا نراجع هذا الحكم>",
   "plan": {
-    "days30": ["<مهمة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"],
-    "days60": ["<مهمة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"],
-    "days90": ["<مهمة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"]
+    "days30": { "goal": "<هدف ٣٠ يوم — ما يجب تحقيقه>", "tasks": ["<مهمة مفصلة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"] },
+    "days60": { "goal": "<هدف ٦٠ يوم — ما يجب بناؤه>", "tasks": ["<مهمة مفصلة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"] },
+    "days90": { "goal": "<هدف ٩٠ يوم — النتيجة المستهدفة>", "tasks": ["<مهمة مفصلة 1>", "<مهمة 2>", "<مهمة 3>", "<مهمة 4>"] }
   }
-}`
+}
+
+كل مهمة في الخطة: جملة كاملة (15-25 كلمة) تصف ماذا + كيف. الخطة متوافقة مع القرار ونتائج المستشارين. كل مرحلة تنتهي بنتيجة قابلة للقياس.`
 
 export function buildSynthesisMessage(
   advisorResults: AdvisorOutput[],
@@ -68,12 +70,13 @@ export function buildSynthesisMessage(
   weights: Record<string, number>,
   decision: Decision
 ): string {
+  const trunc = (s: string | undefined, n: number) => s ? (s.length > n ? s.slice(0, n) + '…' : s) : ''
   const advisorSummaries = advisorResults.map((a) => `
 ### ${a.icon} ${a.name} [وزن: ${weights[a.id?.replace('-advisor', '') || ''] || weights['other'] || 5}٪]
 - الحكم: ${a.verdict} | الثقة: ${a.confidence}٪
-- الملخص: ${a.summary}
-- التوصية: ${a.recommendation}
-- أقوى اعتراض: ${a.strongestObjection}
+- الملخص: ${trunc(a.summary, 220)}
+- التوصية: ${trunc(a.recommendation, 160)}
+- أقوى اعتراض: ${trunc(a.strongestObjection, 130)}
 `).join('\n')
 
   const debateSection = debate

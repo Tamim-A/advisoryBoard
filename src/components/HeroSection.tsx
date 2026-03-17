@@ -115,10 +115,10 @@ export default function HeroSection() {
           {/* Typewriter headline */}
           <motion.h1
             variants={itemVariants}
-            className="text-4xl md:text-6xl lg:text-7xl font-black leading-tight"
+            className="text-4xl md:text-6xl lg:text-7xl font-black leading-tight animate-slide-up"
             style={{ fontFamily: 'Tajawal, sans-serif', color: 'var(--text-primary)' }}
           >
-            <span className="gold-text">{displayed}</span>
+            <span className="gold-text gold-shimmer-text">{displayed}</span>
             {!done && (
               <span className="inline-block w-0.5 h-12 md:h-16 bg-[#D4A853] mx-1 animate-pulse align-middle" />
             )}
@@ -154,7 +154,7 @@ export default function HeroSection() {
               href={ctaHref}
               whileHover={{ scale: 1.04, boxShadow: '0 0 50px rgba(212, 168, 83, 0.35)' }}
               whileTap={{ scale: 0.97 }}
-              className="btn-gold px-8 py-4 rounded-xl text-lg font-bold relative overflow-hidden inline-block"
+              className="btn-gold btn-shine px-8 py-4 rounded-xl text-lg font-bold relative overflow-hidden inline-block"
               style={{ fontFamily: 'Tajawal, sans-serif' }}
             >
               ابدأ جلستك الأولى
@@ -181,7 +181,7 @@ export default function HeroSection() {
                   className="gold-text text-4xl font-black"
                   style={{ fontFamily: 'Tajawal, sans-serif' }}
                 >
-                  {stat.number}
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{stat.number}</span>
                 </div>
                 <div
                   className="text-sm mt-1"

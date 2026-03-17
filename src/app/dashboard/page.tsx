@@ -73,7 +73,7 @@ function StatCard({
       <div>
         <div
           className="text-3xl font-black"
-          style={{ fontFamily: 'Tajawal, sans-serif', color: 'var(--text-primary)' }}
+          style={{ fontFamily: 'Tajawal, sans-serif', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}
         >
           {value}
         </div>
@@ -154,7 +154,7 @@ function SessionCard({ session, index }: { session: DisplaySession; index: numbe
         {/* Verdict */}
         <span
           className="text-xs px-3 py-1 rounded-full font-bold"
-          style={{ background: v.bg, color: v.color, fontFamily: 'Tajawal, sans-serif' }}
+          style={{ background: v.bg, color: v.color, fontFamily: 'Tajawal, sans-serif', boxShadow: `0 0 8px ${v.color}30` }}
         >
           {v.label}
         </span>
@@ -406,11 +406,11 @@ export default function DashboardPage() {
                 ✨ ابدأ جلسة استشارية جديدة
               </h2>
               <p className="text-sm" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                حلّل قرارك القادم مع ٤ مستشارين متخصصين
+                حلّل قرارك القادم مع ٥ مستشارين متخصصين
               </p>
             </div>
             <span
-              className="btn-gold px-6 py-3 rounded-xl font-bold text-sm flex-shrink-0"
+              className="btn-gold btn-shine px-6 py-3 rounded-xl font-bold text-sm flex-shrink-0"
               style={{ fontFamily: 'Tajawal, sans-serif' }}
             >
               ابدأ الآن →

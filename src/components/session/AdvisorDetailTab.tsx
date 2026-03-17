@@ -29,7 +29,7 @@ function ScoreBar({ score, label, delay }: { score: number; label: string; delay
       <div className="w-full h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
         <motion.div
           className="h-full rounded-full"
-          style={{ background: color }}
+          style={{ background: color, transition: 'width 0.6s ease-out' }}
           initial={{ width: 0 }}
           animate={isInView ? { width: `${score * 10}%` } : {}}
           transition={{ duration: 0.8, delay, ease: 'easeOut' }}
@@ -144,7 +144,7 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
             </thead>
             <tbody>
               {(advisor.risks ?? []).map((risk, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
                   <td className="py-2.5 pr-2" style={{ color: 'var(--text-secondary)' }}>{risk.risk}</td>
                   <td className="py-2.5 pr-2">
                     <span className="px-1.5 py-0.5 rounded text-xs" style={{
@@ -189,6 +189,7 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
               style={{
                 background: `${s.color}08`,
                 border: `1px solid ${s.color}30`,
+                borderRight: `3px solid ${s.color}`,
               }}
             >
               <p className="text-xs font-bold mb-2" style={{ color: s.color, fontFamily: 'Tajawal' }}>
@@ -212,6 +213,7 @@ export default function AdvisorDetailTab({ advisor }: { advisor: AdvisorAnalysis
         style={{
           background: 'rgba(212, 168, 83, 0.05)',
           border: '1px solid rgba(212, 168, 83, 0.25)',
+          animation: 'pulseBorder 2.5s ease-in-out infinite',
         }}
       >
         <h3 className="font-bold mb-2 text-sm flex items-center gap-2" style={{ fontFamily: 'Tajawal', color: '#D4A853' }}>

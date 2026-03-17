@@ -16,7 +16,15 @@ const planStyles = [
   { label: '٩٠ يوم', color: '#22C55E', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.2)' },
 ]
 
-export default function VerdictTab({ session }: { session: SessionData }) {
+type PlanPhase = string[] | { goal: string; tasks: string[] }
+
+function normalizePlanPhase(phase: PlanPhase | undefined): { goal?: string; tasks: string[] } {
+  if (!phase) return { tasks: [] }
+  if (Array.isArray(phase)) return { tasks: phase }
+  return { goal: phase.goal, tasks: phase.tasks ?? [] }
+}
+
+export default function VerdictTab({ session, onExportPDF }: { session: SessionData; onExportPDF?: () => void }) {
   const v = verdictConfig[session.overallVerdict] ?? verdictConfig['APPROVE_WITH_CONDITIONS']
 
   return (
@@ -26,11 +34,12 @@ export default function VerdictTab({ session }: { session: SessionData }) {
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-3xl p-10 text-center"
+        className="rounded-3xl p-10 text-center animate-slide-up"
         style={{
           background: v.bg,
           border: `1px solid ${v.color}30`,
           boxShadow: `0 0 80px ${v.glow}`,
+          animationDuration: '0.5s',
         }}
       >
         <p className="text-sm mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
@@ -53,7 +62,7 @@ export default function VerdictTab({ session }: { session: SessionData }) {
             />
           </div>
           <span className="text-sm font-bold" style={{ color: v.color, fontFamily: 'Tajawal' }}>
-            {session.overallConfidence}٪ ثقة
+            <span className="gold-shimmer-text">{session.overallConfidence}٪</span> ثقة
           </span>
         </div>
       </motion.div>
@@ -111,9 +120,10 @@ export default function VerdictTab({ session }: { session: SessionData }) {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {planStyles.map((ps, i) => {
-            const tasks = session.plan
-              ? ([session.plan.days30, session.plan.days60, session.plan.days90][i] ?? [])
-              : []
+            const raw = session.plan
+              ? ([session.plan.days30, session.plan.days60, session.plan.days90][i])
+              : undefined
+            const { goal, tasks } = normalizePlanPhase(raw as PlanPhase | undefined)
             return (
               <div
                 key={ps.label}
@@ -121,11 +131,19 @@ export default function VerdictTab({ session }: { session: SessionData }) {
                 style={{ background: ps.bg, border: `1px solid ${ps.border}` }}
               >
                 <div
-                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4"
+                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-3"
                   style={{ background: `${ps.color}18`, color: ps.color, fontFamily: 'Tajawal' }}
                 >
                   {ps.label}
                 </div>
+                {goal && (
+                  <p
+                    className="text-xs font-semibold mb-3 leading-relaxed"
+                    style={{ color: ps.color, fontFamily: 'IBM Plex Sans Arabic', opacity: 0.9 }}
+                  >
+                    {goal}
+                  </p>
+                )}
                 <ul className="space-y-2.5">
                   {tasks.map((task, j) => (
                     <li key={j} className="flex items-start gap-2">
@@ -171,7 +189,9 @@ export default function VerdictTab({ session }: { session: SessionData }) {
         className="flex flex-col sm:flex-row gap-3"
       >
         <button
-          className="btn-gold flex-1 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"
+          onClick={onExportPDF}
+          disabled={!onExportPDF}
+          className="btn-gold flex-1 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ fontFamily: 'Tajawal, sans-serif' }}
         >
           📄 تصدير PDF

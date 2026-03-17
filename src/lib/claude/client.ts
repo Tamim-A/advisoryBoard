@@ -85,6 +85,17 @@ function parseAdvisorResponse(rawText: string): Record<string, unknown> {
   }
 }
 
+// ─── Estimate token count (rough: 1 token ≈ 4 chars for Arabic/mixed) ──
+function estimateTokens(text: string): number {
+  // Arabic text averages ~2-3 chars per token; mixed content ~3-4
+  return Math.ceil(text.length / 3)
+}
+
+// Maximum input tokens we allow (leave room for max_tokens output)
+// Claude Sonnet has 200K context; we cap input at 150K tokens to be safe
+const MAX_INPUT_TOKENS = 150_000
+const MAX_INPUT_CHARS = MAX_INPUT_TOKENS * 3 // ~450K chars
+
 // ─── Call advisor and return parsed JSON ──────────
 export async function callAdvisor(
   systemPrompt: string,
@@ -95,7 +106,23 @@ export async function callAdvisor(
   const model = useSynthesisModel ? SYNTHESIS_MODEL : ADVISOR_MODEL
 
   const attempt = async () => {
-    console.log(`[Claude] Calling advisor with system prompt length: ${systemPrompt.length}`)
+    const systemLen = systemPrompt.length
+    const userLen = userMessage.length
+    const totalChars = systemLen + userLen
+    const estimatedTokens = estimateTokens(systemPrompt) + estimateTokens(userMessage)
+
+    console.log(`[Claude] Prompt sizes — system: ${systemLen} chars, user: ${userLen} chars, total: ${totalChars} chars, ~${estimatedTokens} tokens, max_tokens: ${maxTokens}`)
+
+    // Pre-flight guard: reject prompts that would exceed context window
+    if (totalChars > MAX_INPUT_CHARS) {
+      const msg = `[Claude] ❌ PROMPT TOO LARGE — ${totalChars} chars (~${estimatedTokens} tokens) exceeds limit of ${MAX_INPUT_CHARS} chars. Truncating user message.`
+      console.error(msg)
+      // Truncate user message to fit within limits
+      const allowedUserChars = MAX_INPUT_CHARS - systemLen - 500 // 500 char safety margin
+      userMessage = userMessage.slice(0, allowedUserChars) + '\n\n[تم اقتصاص المدخلات لتجاوز الحد المسموح]'
+      console.log(`[Claude] Truncated user message to ${userMessage.length} chars`)
+    }
+
     const response = await getClient().messages.create({
       model,
       max_tokens: maxTokens,
@@ -104,9 +131,7 @@ export async function callAdvisor(
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    console.log(`[Claude] Raw response length: ${text.length}`)
-    console.log(`[Claude] First 500 chars: ${text.substring(0, 500)}`)
-    console.log(`[Claude] Last 200 chars: ${text.substring(text.length - 200)}`)
+    console.log(`[Claude] Response length: ${text.length} chars`)
     return parseAdvisorResponse(text)
   }
 
@@ -114,15 +139,15 @@ export async function callAdvisor(
     return await attempt()
   } catch (err: unknown) {
     const e = err as { status?: number; error?: { type?: string } }
-    // Rate limit — wait 15 seconds then retry once
+    // Rate limit only — wait 15 seconds then retry once
+    // NOTE: generic retry removed — it doubled execution time and caused timeouts
     if (e?.status === 429 || e?.error?.type === 'rate_limit_error') {
       console.log('[Claude] Rate limit hit — waiting 15 seconds before retry...')
       await delay(15000)
       return await attempt()
     }
-    // Other transient error — short wait, retry once
-    await delay(1500)
-    return await attempt()
+    // Non-rate-limit errors: propagate up so engine handles fallback cleanly
+    throw err
   }
 }
 

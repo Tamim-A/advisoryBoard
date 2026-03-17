@@ -223,7 +223,7 @@ const SESSION_TYPES = [
   {
     id: 'Quick',
     label: 'جلسة سريعة',
-    sub: '٤ مستشارين أساسيين + توصية',
+    sub: '٥ مستشارين أساسيين + توصية',
     time: '~١ دقيقة',
     borderColor: '#3B82F6',
     bg: 'rgba(59, 130, 246, 0.06)',
@@ -253,10 +253,14 @@ export default function NewSessionPage() {
   const [step, setStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState(false)
   const [trialLimitReached, setTrialLimitReached] = useState(false)
+  const [dailyLimitReached, setDailyLimitReached] = useState(false)
   const [sessionCount, setSessionCount] = useState<number | null>(null)
   const [sessionLimit, setSessionLimit] = useState(2)
   const [isVipUser, setIsVipUser] = useState(false)
+  const [dailyPlatformCount, setDailyPlatformCount] = useState(0)
   const [previousCompanies, setPreviousCompanies] = useState<Array<{
     name: string; sector: string; company_size: string; stage: string; annual_revenue: string; team_size: string
   }>>([])
@@ -269,22 +273,33 @@ export default function NewSessionPage() {
   }, [])
 
   useEffect(() => {
-    if (!hasSupabaseConfig()) return
-    const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      // Fetch session count via the API to respect the same limit
+    const fetchCounts = async () => {
       try {
         const r = await fetch('/api/session/count')
-        if (r.ok) {
-          const { count, limit, vip } = await r.json() as { count: number; limit: number; vip: boolean }
-          setSessionCount(count)
-          setSessionLimit(limit)
-          setIsVipUser(vip)
-          if (count >= limit) setTrialLimitReached(true)
+        if (!r.ok) return
+        const data = await r.json() as { count: number; limit: number; vip: boolean; dailyPlatformCount?: number; dailyPlatformLimit?: number }
+        setSessionCount(data.count)
+        setSessionLimit(data.limit)
+        setIsVipUser(data.vip)
+        if (data.count >= data.limit) setTrialLimitReached(true)
+        if (!data.vip) {
+          setForm((prev) => prev.sessionType !== 'Full' ? { ...prev, sessionType: 'Full' } : prev)
+        }
+        if (typeof data.dailyPlatformCount === 'number') {
+          setDailyPlatformCount(data.dailyPlatformCount)
+          if (data.dailyPlatformCount >= (data.dailyPlatformLimit ?? 15)) setDailyLimitReached(true)
         }
       } catch { /* ignore */ }
-    })
+    }
+
+    if (hasSupabaseConfig()) {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) fetchCounts()
+      })
+    } else {
+      fetchCounts()
+    }
   }, [])
   const [form, setForm] = useState<FormData>({
     companyName: '',
@@ -382,10 +397,32 @@ export default function NewSessionPage() {
           setTrialLimitReached(true)
           return
         }
+        if (err.error === 'daily_platform_limit') {
+          setDailyLimitReached(true)
+          return
+        }
+        if (err.error === 'session_type_restricted') {
+          setSubmitError('هذا النوع من الجلسات متاح فقط لمشتركي VIP')
+          return
+        }
         throw new Error(err.error || 'Failed to create session')
       }
       const { sessionId } = await res.json()
-      router.push(`/session/${sessionId}`)
+
+      // Upload any pending files
+      if (pendingFiles.length > 0) {
+        setUploadingFiles(true)
+        await Promise.allSettled(
+          pendingFiles.map(async (file) => {
+            const fd = new FormData()
+            fd.append('file', file)
+            await fetch(`/api/session/${sessionId}/files`, { method: 'POST', body: fd })
+          })
+        )
+        setUploadingFiles(false)
+      }
+
+      router.push(`/session/${sessionId}/questions`)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'حدث خطأ، حاول مرة ثانية')
     } finally {
@@ -397,6 +434,50 @@ export default function NewSessionPage() {
     enter: { x: -40, opacity: 0 },
     center: { x: 0, opacity: 1 },
     exit: { x: 40, opacity: 0 },
+  }
+
+  // ─── Daily platform limit reached ───
+  if (dailyLimitReached) {
+    return (
+      <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <AppSidebar />
+        <main className="md:mr-60 min-h-screen p-6 md:p-8 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full text-center"
+          >
+            <div
+              className="rounded-3xl p-8 md:p-10"
+              style={{
+                background: 'rgba(19,24,32,0.9)',
+                backdropFilter: 'blur(24px)',
+                border: '1px solid var(--border-gold)',
+                boxShadow: '0 0 60px rgba(212,168,83,0.08)',
+              }}
+            >
+              <div className="text-5xl mb-4">⏳</div>
+              <h2 className="text-xl font-black mb-2" style={{ fontFamily: 'Tajawal', color: 'var(--text-primary)' }}>
+                تم الوصول للحد اليومي
+              </h2>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                تم استخدام {dailyPlatformCount} من أصل 15 جلسة متاحة اليوم على المنصة.
+              </p>
+              <p className="text-sm mb-6" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                يُعاد تعيين العدّاد يومياً عند منتصف الليل بتوقيت السعودية. يرجى المحاولة غداً.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="w-full py-3 rounded-xl font-bold text-sm"
+                style={{ background: 'rgba(212,168,83,0.1)', border: '1px solid var(--border-gold)', color: 'var(--accent-gold)', fontFamily: 'Tajawal' }}
+              >
+                العودة للوحة التحكم
+              </button>
+            </div>
+          </motion.div>
+        </main>
+      </div>
+    )
   }
 
   if (trialLimitReached) {
@@ -497,6 +578,25 @@ export default function NewSessionPage() {
               </span>
               <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
                 {sessionCount}/{sessionLimit} جلسات
+              </span>
+            </div>
+          )}
+
+          {/* Daily platform usage banner */}
+          {dailyPlatformCount > 0 && !dailyLimitReached && (
+            <div
+              className="mb-3 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs"
+              style={{
+                background: dailyPlatformCount >= 12 ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${dailyPlatformCount >= 12 ? 'rgba(239,68,68,0.15)' : 'var(--border)'}`,
+                fontFamily: 'IBM Plex Sans Arabic',
+              }}
+            >
+              <span style={{ color: dailyPlatformCount >= 12 ? '#EF4444' : 'var(--text-muted)' }}>
+                الجلسات اليومية على المنصة: {dailyPlatformCount}/15
+              </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                متبقي {15 - dailyPlatformCount} جلسة اليوم
               </span>
             </div>
           )}
@@ -661,10 +761,10 @@ export default function NewSessionPage() {
                     {/* File upload zone */}
                     <div>
                       <p className="text-xs mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                        رفع ملفات داعمة (اختياري)
+                        رفع ملفات داعمة (اختياري) — PDF, Word, Excel — حد 3 ملفات / 10MB
                       </p>
-                      <div
-                        className="rounded-xl p-8 text-center transition-all duration-300 cursor-pointer"
+                      <label
+                        className="block rounded-xl p-6 text-center transition-all duration-300 cursor-pointer"
                         style={{
                           border: '2px dashed rgba(212, 168, 83, 0.3)',
                           background: 'rgba(212, 168, 83, 0.03)',
@@ -678,14 +778,51 @@ export default function NewSessionPage() {
                           e.currentTarget.style.background = 'rgba(212, 168, 83, 0.03)'
                         }}
                       >
+                        <input
+                          type="file"
+                          className="hidden"
+                          multiple
+                          accept=".pdf,.doc,.docx,.xls,.xlsx"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files ?? [])
+                            const allowed = files.filter((f) => f.size <= 10 * 1024 * 1024)
+                            setPendingFiles((prev) => {
+                              const combined = [...prev, ...allowed]
+                              return combined.slice(0, 3)
+                            })
+                            e.target.value = ''
+                          }}
+                        />
                         <span className="text-2xl">📁</span>
                         <p className="text-sm mt-2" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                          اسحب الملفات هنا أو اضغط للاختيار
+                          اضغط لاختيار الملفات
                         </p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                          PDF, Excel, Word — حجم أقصى ٢٠ ميجابايت
-                        </p>
-                      </div>
+                      </label>
+
+                      {/* Pending files list */}
+                      {pendingFiles.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {pendingFiles.map((file, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between px-3 py-2 rounded-lg"
+                              style={{ background: 'rgba(212,168,83,0.06)', border: '1px solid rgba(212,168,83,0.2)' }}
+                            >
+                              <span className="text-xs truncate" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                                {file.name} <span style={{ color: 'var(--text-muted)' }}>({(file.size / 1024).toFixed(0)} KB)</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                className="text-xs ml-2 shrink-0"
+                                style={{ color: '#EF4444' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Active advisors */}
@@ -709,6 +846,7 @@ export default function NewSessionPage() {
                                 background: active ? 'rgba(212, 168, 83, 0.1)' : 'rgba(255,255,255,0.03)',
                                 border: `1px solid ${active ? 'var(--accent-gold)' : 'var(--border)'}`,
                                 boxShadow: active ? '0 0 16px rgba(212,168,83,0.08)' : 'none',
+                                transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                               }}
                             >
                               <span className="text-lg mt-0.5">{advisor.icon}</span>
@@ -827,41 +965,62 @@ export default function NewSessionPage() {
                         اختر نوع الجلسة
                       </p>
                       <div className="space-y-3">
-                        {SESSION_TYPES.map((st) => (
-                          <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => setForm((p) => ({ ...p, sessionType: st.id }))}
-                            className="w-full p-4 rounded-2xl text-right transition-all duration-200 relative"
-                            style={{
-                              background: form.sessionType === st.id ? st.bg : 'rgba(255,255,255,0.03)',
-                              border: `2px solid ${form.sessionType === st.id ? st.borderColor : 'var(--border)'}`,
-                              boxShadow: form.sessionType === st.id ? `0 0 20px ${st.borderColor}22` : 'none',
-                            }}
-                          >
-                            {st.recommended && (
-                              <span
-                                className="absolute top-3 left-3 text-xs px-2 py-0.5 rounded-full font-bold"
-                                style={{
-                                  background: 'rgba(212, 168, 83, 0.15)',
-                                  color: 'var(--accent-gold)',
-                                  fontFamily: 'Tajawal',
-                                }}
-                              >
-                                مُوصى به
-                              </span>
-                            )}
-                            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'Tajawal' }}>
-                              {st.label}
-                            </p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
-                              {st.sub}
-                            </p>
-                            <p className="text-xs mt-0.5" style={{ color: st.borderColor, fontFamily: 'IBM Plex Sans Arabic' }}>
-                              {st.time}
-                            </p>
-                          </button>
-                        ))}
+                        {SESSION_TYPES.map((st) => {
+                          const vipOnly = (st.id === 'Quick' || st.id === 'Deep') && !isVipUser
+                          const selected = form.sessionType === st.id
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => !vipOnly && setForm((p) => ({ ...p, sessionType: st.id }))}
+                              disabled={vipOnly}
+                              className="w-full p-4 rounded-2xl text-right transition-all duration-200 relative"
+                              style={{
+                                background: vipOnly ? 'rgba(255,255,255,0.02)' : selected ? st.bg : 'rgba(255,255,255,0.03)',
+                                border: `2px solid ${vipOnly ? 'var(--border)' : selected ? st.borderColor : 'var(--border)'}`,
+                                boxShadow: selected && !vipOnly ? `0 0 20px ${st.borderColor}22` : 'none',
+                                opacity: vipOnly ? 0.5 : 1,
+                                cursor: vipOnly ? 'not-allowed' : 'pointer',
+                                transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
+                              }}
+                            >
+                              {vipOnly && (
+                                <span
+                                  className="absolute top-3 left-3 text-xs px-2 py-0.5 rounded-full font-bold"
+                                  style={{
+                                    background: 'rgba(167, 139, 250, 0.12)',
+                                    border: '1px solid rgba(167, 139, 250, 0.3)',
+                                    color: '#A78BFA',
+                                    fontFamily: 'Tajawal',
+                                  }}
+                                >
+                                  VIP فقط 🔒
+                                </span>
+                              )}
+                              {st.recommended && !vipOnly && (
+                                <span
+                                  className="absolute top-3 left-3 text-xs px-2 py-0.5 rounded-full font-bold"
+                                  style={{
+                                    background: 'rgba(212, 168, 83, 0.15)',
+                                    color: 'var(--accent-gold)',
+                                    fontFamily: 'Tajawal',
+                                  }}
+                                >
+                                  مُوصى به
+                                </span>
+                              )}
+                              <p className="font-bold text-sm" style={{ color: vipOnly ? 'var(--text-muted)' : 'var(--text-primary)', fontFamily: 'Tajawal' }}>
+                                {st.label}
+                              </p>
+                              <p className="text-xs mt-1" style={{ color: vipOnly ? 'var(--text-muted)' : 'var(--text-secondary)', fontFamily: 'IBM Plex Sans Arabic' }}>
+                                {st.sub}
+                              </p>
+                              <p className="text-xs mt-0.5" style={{ color: vipOnly ? 'var(--text-muted)' : st.borderColor, fontFamily: 'IBM Plex Sans Arabic' }}>
+                                {st.time}
+                              </p>
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   </>
@@ -896,7 +1055,7 @@ export default function NewSessionPage() {
               {step < 4 ? (
                 <button
                   onClick={() => setStep((s) => Math.min(4, s + 1))}
-                  className="btn-gold px-6 py-2.5 rounded-xl text-sm font-bold"
+                  className="btn-gold btn-shine px-6 py-2.5 rounded-xl text-sm font-bold"
                   style={{ fontFamily: 'Tajawal, sans-serif' }}
                 >
                   التالي →
@@ -907,13 +1066,13 @@ export default function NewSessionPage() {
                   whileTap={!submitting ? { scale: 0.97 } : {}}
                   onClick={handleStart}
                   disabled={submitting}
-                  className="btn-gold px-8 py-3 rounded-xl font-bold text-base"
+                  className="btn-gold btn-shine px-8 py-3 rounded-xl font-bold text-base"
                   style={{ fontFamily: 'Tajawal, sans-serif', opacity: submitting ? 0.7 : 1 }}
                 >
                   {submitting ? (
                     <span className="flex items-center gap-2">
                       <span className="w-4 h-4 border-2 border-[#07090F]/30 border-t-[#07090F] rounded-full animate-spin" />
-                      جاري إنشاء الجلسة...
+                      {uploadingFiles ? 'جاري رفع الملفات...' : 'جاري إنشاء الجلسة...'}
                     </span>
                   ) : (
                     'ابدأ الجلسة الاستشارية ✨'

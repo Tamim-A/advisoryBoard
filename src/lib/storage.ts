@@ -70,6 +70,24 @@ export function updateSession(id: string, updates: Partial<StoredSession>): Stor
   return updated
 }
 
+// عدد الجلسات اليومي — JSON storage fallback (localhost)
+export function getDailySessionCountLocal(): number {
+  ensureDir()
+  try {
+    const now = new Date()
+    const todayStart = new Date(`${now.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })}T00:00:00+03:00`)
+    return fs
+      .readdirSync(SESSIONS_DIR)
+      .filter((f) => f.endsWith('.json'))
+      .filter((f) => {
+        try {
+          const s = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf-8'))
+          return new Date(s.createdAt) >= todayStart
+        } catch { return false }
+      }).length
+  } catch { return 0 }
+}
+
 export function getAllSessions(): StoredSession[] {
   ensureDir()
   try {

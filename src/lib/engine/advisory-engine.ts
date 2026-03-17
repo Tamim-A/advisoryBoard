@@ -85,32 +85,100 @@ function createFallbackReport(advisorId: string, reason = 'يرجى الضغط �
   } as AdvisorOutput & { _isFallback: boolean }
 }
 
+// ─── Truncate helper ─────────────────────────────────────
+function truncField(s: string | undefined, maxLen: number): string {
+  if (!s) return ''
+  return s.length > maxLen ? s.slice(0, maxLen) + '…' : s
+}
+
+// ─── Sanitize decision/company fields to prevent oversized prompts ─
+function sanitizeInputs(
+  company: CompanyProfile,
+  decision: Decision
+): { company: CompanyProfile; decision: Decision } {
+  return {
+    company: {
+      ...company,
+      company_name: truncField(company.company_name, 200),
+      sector: truncField(company.sector, 200),
+      company_size: truncField(company.company_size, 100),
+      stage: truncField(company.stage, 100),
+      annual_revenue: truncField(company.annual_revenue, 100),
+      team_size: truncField(company.team_size, 100),
+    },
+    decision: {
+      ...decision,
+      title: truncField(decision.title, 300),
+      description: truncField(decision.description, 2000),
+      category: truncField(decision.category, 100),
+      primary_goal: truncField(decision.primary_goal, 500),
+      estimated_cost: truncField(decision.estimated_cost, 200),
+      expected_timeline: truncField(decision.expected_timeline, 200),
+      alternatives: truncField(decision.alternatives, 1000),
+      constraints: truncField(decision.constraints, 1000),
+    },
+  }
+}
+
+// ─── Build extra context suffix (clarifying answers + uploaded docs) ─
+function buildExtraContext(
+  clarifyingAnswers?: { question: string; answer: string }[],
+  uploadedContext?: string
+): string {
+  let extra = ''
+  if (clarifyingAnswers && clarifyingAnswers.length > 0) {
+    extra += '\n\n## إجابات توضيحية من صاحب القرار:\n'
+    // Limit to 10 questions, each answer max 500 chars
+    clarifyingAnswers.slice(0, 10).forEach(({ question, answer }) => {
+      extra += `- ${truncField(question, 200)}\n  → ${truncField(answer, 500)}\n`
+    })
+  }
+  if (uploadedContext) {
+    extra += `\n\n## وثائق مرفوعة (ملخص):\n${uploadedContext.slice(0, 2000)}`
+  }
+  return extra
+}
+
 // ─── Run a single advisor (with rate-limit-aware retry) ─
 async function runSingleAdvisor(
   advisorId: string,
   company: CompanyProfile,
-  decision: Decision
+  decision: Decision,
+  clarifyingAnswers?: { question: string; answer: string }[],
+  uploadedContext?: string
 ): Promise<AdvisorOutput> {
   const config = ADVISOR_REGISTRY[advisorId]
   if (!config) throw new Error(`Unknown advisor: ${advisorId}`)
 
-  const ADVISOR_TIMEOUT_MS = 40_000 // 40 seconds — 2000 tokens ≈ 25-30s generation
+  // 75s: single attempt for 3500 tokens at ~80 tok/s ≈ 44s + network overhead
+  // Generic retry removed from callAdvisor — it doubled execution time
+  const ADVISOR_TIMEOUT_MS = 75_000
 
+  // Sanitize inputs to prevent oversized prompts
+  const { company: safeCompany, decision: safeDecision } = sanitizeInputs(company, decision)
+
+  const t0 = Date.now()
   try {
     // buildUserMessage inside try so any error is safely caught
-    const userMessage = config.module.buildUserMessage(company, decision)
-    // callAdvisor already handles 429 retry internally (client.ts)
+    const userMessage =
+      config.module.buildUserMessage(safeCompany, safeDecision) +
+      buildExtraContext(clarifyingAnswers, uploadedContext)
+    console.log(`[Engine] → ${advisorId} started | system: ${config.module.SYSTEM_PROMPT.length} chars, user: ${userMessage.length} chars, total: ${config.module.SYSTEM_PROMPT.length + userMessage.length} chars`)
     const result = await withTimeout(
-      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 2000),
+      callAdvisor(config.module.SYSTEM_PROMPT, userMessage, 3500),
       ADVISOR_TIMEOUT_MS,
       advisorId
     ) as unknown as AdvisorOutput
+    const duration = ((Date.now() - t0) / 1000).toFixed(1)
+    const isFallback = (result as AdvisorOutput & { _isFallback?: boolean })._isFallback
+    console.log(`[Engine] ✓ ${advisorId} done in ${duration}s${isFallback ? ' [FALLBACK — parse error]' : ''}`)
     return { ...result, id: advisorId, name: config.name, icon: config.icon }
   } catch (error: unknown) {
+    const duration = ((Date.now() - t0) / 1000).toFixed(1)
     const e = error as { status?: number; error?: { type?: string }; message?: string }
     const isTimeout = e?.message?.startsWith('[Timeout]')
     const reason = isTimeout ? 'استغرق التحليل وقتاً أطول من المتوقع' : 'خطأ تقني'
-    if (process.env.NODE_ENV === 'development') console.error(`[Engine] Error for ${advisorId}:`, error)
+    console.error(`[Engine] ✗ ${advisorId} FAILED after ${duration}s — ${isTimeout ? 'TIMEOUT' : (e?.message || 'unknown error')}`)
     return createFallbackReport(advisorId, reason)
   }
 }
@@ -119,9 +187,11 @@ async function runSingleAdvisor(
 async function runWithRetry(
   advisorId: string,
   company: CompanyProfile,
-  decision: Decision
+  decision: Decision,
+  clarifyingAnswers?: { question: string; answer: string }[],
+  uploadedContext?: string
 ): Promise<AdvisorOutput> {
-  const result = await runSingleAdvisor(advisorId, company, decision)
+  const result = await runSingleAdvisor(advisorId, company, decision, clarifyingAnswers, uploadedContext)
   const isFallback = (result as AdvisorOutput & { _isFallback?: boolean })._isFallback
   if (!isFallback && result.summary && result.scorecard) return result
   console.log(`[Engine] Incomplete result for ${advisorId} — using fallback`)
@@ -132,12 +202,14 @@ async function runWithRetry(
 async function runAdvisorsSequential(
   advisors: string[],
   company: CompanyProfile,
-  decision: Decision
+  decision: Decision,
+  clarifyingAnswers?: { question: string; answer: string }[],
+  uploadedContext?: string
 ): Promise<AdvisorOutput[]> {
   const results: AdvisorOutput[] = []
   for (let i = 0; i < advisors.length; i++) {
     console.log(`[Engine] Starting advisor ${i + 1}/${advisors.length}: ${advisors[i]}`)
-    const result = await runWithRetry(advisors[i], company, decision)
+    const result = await runWithRetry(advisors[i], company, decision, clarifyingAnswers, uploadedContext)
     results.push(result)
     console.log(`[Engine] Completed: ${advisors[i]}`)
     if (i < advisors.length - 1) await delay(2000)
@@ -156,6 +228,7 @@ async function runDebate(advisorResults: AdvisorOutput[]): Promise<DebateOutput>
   if (usable.length < 2) return { points: [] }
   try {
     const userMessage = buildDebateMessage(usable)
+    console.log(`[Engine] → debate started | system: ${DEBATE_PROMPT.length} chars, user: ${userMessage.length} chars, total: ${DEBATE_PROMPT.length + userMessage.length} chars`)
     const result = await withTimeout(
       callAdvisor(DEBATE_PROMPT, userMessage, 2000) as Promise<unknown>,
       25_000,
@@ -212,12 +285,12 @@ async function runSynthesis(
 ): Promise<SynthesisOutput> {
   const usable = successfulAdvisors(advisorResults)
   const forSynthesis = usable.length > 0 ? usable : advisorResults
-  if (process.env.NODE_ENV === 'development') console.log(`[Engine] Synthesis using ${forSynthesis.length}/${advisorResults.length} advisors`)
   const userMessage = buildSynthesisMessage(forSynthesis, debate, weights, decision)
+  console.log(`[Engine] → synthesis started | system: ${SYNTHESIS_PROMPT.length} chars, user: ${userMessage.length} chars, total: ${SYNTHESIS_PROMPT.length + userMessage.length} chars | using ${forSynthesis.length}/${advisorResults.length} advisors`)
   try {
     const result = await withTimeout(
       callAdvisor(SYNTHESIS_PROMPT, userMessage, 4500, true) as Promise<unknown>,
-      55_000,
+      90_000,
       'synthesis'
     ) as unknown as SynthesisOutput
     // Validate minimum required fields — if missing, fall through to fallback
@@ -234,7 +307,7 @@ async function runSynthesis(
 
 // ─── Main orchestrator ──────────────────────────────────
 export async function runAdvisorySession(sessionData: SessionInput): Promise<SessionResult> {
-  const { companyProfile, decision, additionalAdvisors, sessionType } = sessionData
+  const { companyProfile, decision, additionalAdvisors, sessionType, clarifyingAnswers, uploadedContext } = sessionData
 
   // Only run advisors that are currently active (filter out coming-soon)
   const requested = additionalAdvisors && additionalAdvisors.length > 0
@@ -243,7 +316,7 @@ export async function runAdvisorySession(sessionData: SessionInput): Promise<Ses
   const allAdvisors = requested.filter((a) => ACTIVE_ADVISORS.includes(a))
 
   console.log('[Engine] Active advisors:', allAdvisors)
-  const advisorResults = await runAdvisorsSequential(allAdvisors, companyProfile, decision)
+  const advisorResults = await runAdvisorsSequential(allAdvisors, companyProfile, decision, clarifyingAnswers, uploadedContext)
 
   // Debate (Full + Deep only)
   let debate: DebateOutput | null = null
@@ -263,7 +336,7 @@ export async function* runAdvisorySessionStream(
   sessionData: SessionInput,
   onAdvisorComplete?: (advisorId: string, result: AdvisorOutput) => void
 ): AsyncGenerator<{ type: string; data: unknown }> {
-  const { companyProfile, decision, additionalAdvisors, sessionType } = sessionData
+  const { companyProfile, decision, additionalAdvisors, sessionType, clarifyingAnswers, uploadedContext } = sessionData
 
   // Only run advisors that are currently active (filter out coming-soon)
   const requested = additionalAdvisors && additionalAdvisors.length > 0
@@ -278,7 +351,7 @@ export async function* runAdvisorySessionStream(
   for (let i = 0; i < allAdvisors.length; i++) {
     const advisorId = allAdvisors[i]
     console.log(`[Engine] Starting advisor ${i + 1}/${allAdvisors.length}: ${advisorId}`)
-    const result = await runWithRetry(advisorId, companyProfile, decision)
+    const result = await runWithRetry(advisorId, companyProfile, decision, clarifyingAnswers, uploadedContext)
     advisorResults.push(result)
     if (onAdvisorComplete) onAdvisorComplete(advisorId, result)
     yield { type: 'advisor_complete', data: { advisorId, result } }
